@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "695847730782",
+    "project_id": "gelion-d57cd",
+    "storage_bucket": "gelion-d57cd.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:695847730782:android:c743955459a1dfa789becf",
+        "android_client_info": {
+          "package_name": "com.example.gelion_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCs_a_7Tr_xWlxcm4TPdYtO6p3ur9GlsXY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:695847730782:android:09e28f9d0d514d4b89becf",
+        "android_client_info": {
+          "package_name": "com.gelion.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCs_a_7Tr_xWlxcm4TPdYtO6p3ur9GlsXY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
