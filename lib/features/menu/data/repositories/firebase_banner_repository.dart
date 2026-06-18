@@ -1,5 +1,11 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:developer' as developer;
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
+
+import '../banner_image_url_resolver.dart';
+import '../../domain/banner_image_pipeline.dart';
+import '../../domain/banner_list_utils.dart';
 import '../../domain/entities/promo_banner.dart';
 import '../../domain/repositories/banner_repository.dart';
 
@@ -11,19 +17,40 @@ class FirebaseBannerRepository implements BannerRepository {
 
   @override
   Stream<List<PromoBanner>> watchActiveBanners() {
-    return _db.collection('banners').snapshots().map((snap) {
-      final list = snap.docs
+    return _db.collection('banners').snapshots().asyncMap(_mapActive);
+  }
+
+  Future<List<PromoBanner>> _mapActive(
+    QuerySnapshot<Map<String, dynamic>> snap,
+  ) async {
+    try {
+      final parsed = <PromoBanner>[];
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final banner = PromoBanner.fromDoc(doc);
+        if (kDebugMode) {
+          BannerImagePipeline.logFirestoreFields(
+            banner.id.isNotEmpty ? banner.id : doc.id,
+            data,
+          );
+        }
+        if (banner.isActive) parsed.add(banner);
+      }
+
+      final list = dedupeBannersById(parsed);
+      sortBannersForCarousel(list);
+      return resolveBannerImageUrls(list);
+    } catch (e, st) {
+      developer.log(
+        'FirebaseBannerRepository._mapActive failed: $e',
+        name: 'BannerImage',
+        error: e,
+        stackTrace: st,
+      );
+      return snap.docs
           .map(PromoBanner.fromDoc)
-          .where((b) => b.isActive && b.imageUrl.isNotEmpty)
+          .where((b) => b.isActive)
           .toList();
-      list.sort((a, b) {
-        final byOrder = a.order.compareTo(b.order);
-        if (byOrder != 0) return byOrder;
-        final ca = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-        final cb = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-        return cb.compareTo(ca);
-      });
-      return list;
-    });
+    }
   }
 }

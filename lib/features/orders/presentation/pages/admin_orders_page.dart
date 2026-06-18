@@ -7,18 +7,51 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../../../cart/presentation/utils/format_sum.dart';
 import '../../data/firebase_order_repository.dart';
 import '../../domain/entities/app_order.dart';
+import '../../domain/entities/order_status.dart';
+import '../widgets/order_status_badge.dart';
 
-class AdminOrdersPage extends StatelessWidget {
+class AdminOrdersPage extends StatefulWidget {
   const AdminOrdersPage({super.key, this.orderRepository});
 
   final FirebaseOrderRepository? orderRepository;
+
+  @override
+  State<AdminOrdersPage> createState() => _AdminOrdersPageState();
+}
+
+class _AdminOrdersPageState extends State<AdminOrdersPage>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabs;
+  final _repo = FirebaseOrderRepository();
+
+  static const _tabStatuses = [
+    OrderStatus.pending,
+    OrderStatus.accepted,
+    OrderStatus.preparing,
+    OrderStatus.delivering,
+    OrderStatus.completed,
+    OrderStatus.cancelled,
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _tabs = TabController(length: _tabStatuses.length, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabs.dispose();
+    super.dispose();
+  }
+
+  FirebaseOrderRepository get repo => widget.orderRepository ?? _repo;
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? const Color(0xFF141018) : const Color(0xFFFFF9F0);
-    final repo = orderRepository ?? FirebaseOrderRepository();
 
     return Scaffold(
       backgroundColor: bg,
@@ -27,16 +60,31 @@ class AdminOrdersPage extends StatelessWidget {
         backgroundColor: isDark ? const Color(0xFF1E1A22) : Colors.white,
         foregroundColor: isDark ? Colors.white : const Color(0xFF2B1E16),
         elevation: 0,
+        bottom: TabBar(
+          controller: _tabs,
+          isScrollable: true,
+          labelColor: const Color(0xFFFF8C00),
+          unselectedLabelColor: isDark ? Colors.white54 : Colors.brown.shade500,
+          indicatorColor: const Color(0xFFFF8C00),
+          tabs: _tabStatuses
+              .map((s) => Tab(text: s.label(l10n), height: 44))
+              .toList(),
+        ),
       ),
       body: StreamBuilder<List<AppOrder>>(
         stream: repo.watchAllOrders(),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator(color: Color(0xFFFF8C00)));
+          if (snapshot.connectionState == ConnectionState.waiting &&
+              !snapshot.hasData) {
+            return const Center(
+              child: CircularProgressIndicator(color: Color(0xFFFF8C00)),
+            );
           }
           if (snapshot.hasError) {
             final err = snapshot.error;
-            final msg = err is FirebaseException ? '${err.code}: ${err.message}' : l10n.adminOrdersLoadError;
+            final msg = err is FirebaseException
+                ? '${err.code}: ${err.message}'
+                : l10n.adminOrdersLoadError;
             return Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
@@ -45,29 +93,38 @@ class AdminOrdersPage extends StatelessWidget {
             );
           }
           final orders = snapshot.data ?? [];
-          if (orders.isEmpty) {
-            return Center(
-              child: Text(
-                l10n.adminOrdersEmpty,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: isDark ? Colors.white54 : Colors.brown.shade600,
+
+          return TabBarView(
+            controller: _tabs,
+            children: _tabStatuses.map((status) {
+              final filtered = orders
+                  .where((o) => OrderStatus.fromCode(o.status) == status)
+                  .toList();
+              if (filtered.isEmpty) {
+                return Center(
+                  child: Text(
+                    l10n.adminOrdersEmpty,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? Colors.white54 : Colors.brown.shade600,
+                    ),
+                  ),
+                );
+              }
+              return ListView.separated(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+                physics: const BouncingScrollPhysics(),
+                itemCount: filtered.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                itemBuilder: (context, i) => _AdminOrderCard(
+                  order: filtered[i],
+                  isDark: isDark,
+                  l10n: l10n,
+                  repository: repo,
                 ),
-              ),
-            );
-          }
-          return ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
-            physics: const BouncingScrollPhysics(),
-            itemCount: orders.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 12),
-            itemBuilder: (context, i) => _AdminOrderCard(
-              order: orders[i],
-              isDark: isDark,
-              l10n: l10n,
-              repository: repo,
-            ),
+              );
+            }).toList(),
           );
         },
       ),
@@ -96,40 +153,27 @@ class _AdminOrderCardState extends State<_AdminOrderCard> {
   late String _status;
   bool _updating = false;
 
-  static const _statuses = ['pending', 'preparing', 'delivering', 'completed', 'cancelled'];
+  static const _statuses = [
+    'pending',
+    'accepted',
+    'preparing',
+    'delivering',
+    'completed',
+    'cancelled',
+  ];
 
   @override
   void initState() {
     super.initState();
-    _status = widget.order.status;
+    _status = OrderStatus.fromCode(widget.order.status).code;
   }
 
   @override
   void didUpdateWidget(covariant _AdminOrderCard oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.order.status != widget.order.status) {
-      _status = widget.order.status;
+      _status = OrderStatus.fromCode(widget.order.status).code;
     }
-  }
-
-  String _statusLabel(String code) {
-    return switch (code) {
-      'preparing' => widget.l10n.orderStatusPreparing,
-      'delivering' => widget.l10n.orderStatusDelivering,
-      'completed' => widget.l10n.orderStatusCompleted,
-      'cancelled' => widget.l10n.orderStatusCancelled,
-      _ => widget.l10n.orderStatusPending,
-    };
-  }
-
-  Color _statusColor(String code) {
-    return switch (code) {
-      'preparing' => const Color(0xFF42A5F5),
-      'delivering' => const Color(0xFFAB47BC),
-      'completed' => const Color(0xFF66BB6A),
-      'cancelled' => const Color(0xFFEF5350),
-      _ => const Color(0xFFFF8C00),
-    };
   }
 
   Future<void> _onStatusChanged(String? value) async {
@@ -139,7 +183,11 @@ class _AdminOrderCardState extends State<_AdminOrderCard> {
       _status = value;
     });
     try {
-      await widget.repository.updateOrderStatus(widget.order.id, value);
+      await widget.repository.updateOrderStatus(
+        userId: widget.order.userId,
+        orderId: widget.order.id,
+        status: value,
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -150,7 +198,7 @@ class _AdminOrderCardState extends State<_AdminOrderCard> {
       }
     } catch (_) {
       if (mounted) {
-        setState(() => _status = widget.order.status);
+        setState(() => _status = OrderStatus.fromCode(widget.order.status).code);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             behavior: SnackBarBehavior.floating,
@@ -176,7 +224,9 @@ class _AdminOrderCardState extends State<_AdminOrderCard> {
         color: card,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: widget.isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFFFE0B2).withValues(alpha: 0.5),
+          color: widget.isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : const Color(0xFFFFE0B2).withValues(alpha: 0.5),
         ),
         boxShadow: [
           BoxShadow(
@@ -216,21 +266,7 @@ class _AdminOrderCardState extends State<_AdminOrderCard> {
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: _statusColor(_status).withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  _statusLabel(_status),
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12,
-                    color: _statusColor(_status),
-                  ),
-                ),
-              ),
+              OrderStatusBadge(statusCode: _status),
             ],
           ),
           const SizedBox(height: 14),
@@ -273,7 +309,9 @@ class _AdminOrderCardState extends State<_AdminOrderCard> {
                 fontSize: 14,
                 height: 1.45,
                 fontWeight: FontWeight.w600,
-                color: widget.isDark ? Colors.white.withValues(alpha: 0.92) : const Color(0xFF4E342E),
+                color: widget.isDark
+                    ? Colors.white.withValues(alpha: 0.92)
+                    : const Color(0xFF4E342E),
               ),
             ),
           ),
@@ -333,7 +371,7 @@ class _AdminOrderCardState extends State<_AdminOrderCard> {
                 .map(
                   (s) => DropdownMenuItem(
                     value: s,
-                    child: Text(_statusLabel(s)),
+                    child: Text(OrderStatus.fromCode(s).label(widget.l10n)),
                   ),
                 )
                 .toList(),

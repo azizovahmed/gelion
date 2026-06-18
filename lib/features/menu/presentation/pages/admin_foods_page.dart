@@ -304,7 +304,7 @@ class _FoodEditorSheetState extends ConsumerState<_FoodEditorSheet> {
         id: widget.existing?.id ?? '',
         name: name,
         price: price,
-        imageUrl: widget.existing?.imageUrl ?? '',
+        imagePath: widget.existing?.imagePath ?? '',
         imageBytes: bytesForSave,
         category: categoryName,
         categoryId: _categoryId,

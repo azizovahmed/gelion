@@ -1,6 +1,5 @@
 import 'dart:typed_data';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,9 +7,37 @@ import '../../../../core/l10n/app_l10n.dart';
 import '../../../../core/services/firebase_error_mapper.dart';
 import '../../application/menu_providers.dart';
 import '../../domain/entities/promo_banner.dart';
-import '../../domain/food_image_url.dart';
 import '../../domain/product_image_picker.dart';
 import '../../domain/product_image_prepare.dart';
+import '../../presentation/widgets/banner_cover_image.dart';
+
+class _BannerImagePreview extends StatelessWidget {
+  const _BannerImagePreview({required this.bytes, this.existing});
+
+  final Uint8List? bytes;
+  final PromoBanner? existing;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasBytes = bytes != null && bytes!.isNotEmpty;
+    return AspectRatio(
+      aspectRatio: 16 / 9,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: ColoredBox(
+          color: const Color(0xFFFFF3E0),
+          child: hasBytes
+              ? Image.memory(bytes!, fit: BoxFit.cover)
+              : existing != null
+                  ? BannerCoverImage(banner: existing!, fit: BoxFit.cover)
+                  : const Center(
+                      child: Icon(Icons.image_outlined, size: 36, color: Color(0xFFFF8C00)),
+                    ),
+        ),
+      ),
+    );
+  }
+}
 
 /// Admin: bannerlar CRUD + rasm (Storage).
 class AdminBannersPage extends ConsumerWidget {
@@ -50,7 +77,6 @@ class AdminBannersPage extends ConsumerWidget {
             separatorBuilder: (_, _) => const SizedBox(height: 10),
             itemBuilder: (context, i) {
               final b = banners[i];
-              final url = normalizeFoodImageUrl(b.imageUrl);
               return Material(
                 color: isDark ? const Color(0xFF1E1A22) : Colors.white,
                 borderRadius: BorderRadius.circular(18),
@@ -60,12 +86,7 @@ class AdminBannersPage extends ConsumerWidget {
                     child: SizedBox(
                       width: 56,
                       height: 56,
-                      child: isRenderableNetworkImageUrl(url)
-                          ? CachedNetworkImage(imageUrl: url, fit: BoxFit.cover)
-                          : const ColoredBox(
-                              color: Color(0xFFFFF3E0),
-                              child: Icon(Icons.image_outlined),
-                            ),
+                      child: BannerCoverImage(banner: b, fit: BoxFit.cover),
                     ),
                   ),
                   title: Text(b.title, style: const TextStyle(fontWeight: FontWeight.w800)),
@@ -191,7 +212,7 @@ class _BannerEditorSheetState extends ConsumerState<_BannerEditorSheet> {
         id: widget.existing?.id ?? '',
         title: _titleCtrl.text.trim(),
         subtitle: _subtitleCtrl.text.trim(),
-        imageUrl: widget.existing?.imageUrl ?? '',
+        imagePath: widget.existing?.imagePath ?? '',
         buttonText: _buttonCtrl.text.trim(),
         link: _linkCtrl.text.trim(),
         discount: _discountCtrl.text.trim(),
@@ -244,10 +265,19 @@ class _BannerEditorSheetState extends ConsumerState<_BannerEditorSheet> {
                 style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
               ),
               const SizedBox(height: 12),
+              _BannerImagePreview(
+                bytes: _imageBytes,
+                existing: widget.existing,
+              ),
+              const SizedBox(height: 10),
               OutlinedButton.icon(
                 onPressed: _saving ? null : _pickImage,
                 icon: const Icon(Icons.photo_library_outlined),
-                label: Text(l10n.profilePhotoGallery),
+                label: Text(
+                  _imageBytes != null || (widget.existing?.imagePath.isNotEmpty ?? false)
+                      ? l10n.adminBannerChangeImage
+                      : l10n.profilePhotoGallery,
+                ),
               ),
               const SizedBox(height: 12),
               TextField(controller: _titleCtrl, decoration: InputDecoration(labelText: l10n.adminBannerTitle)),

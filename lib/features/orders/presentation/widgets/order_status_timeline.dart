@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/l10n/app_l10n.dart';
-import '../../../../l10n/generated/app_localizations.dart';
 import '../../domain/entities/order_status.dart';
 
 class OrderStatusTimeline extends StatelessWidget {
@@ -18,7 +17,8 @@ class OrderStatusTimeline extends StatelessWidget {
       return _CancelledBanner(status: current, l10n: l10n);
     }
 
-    final activeIndex = current.timelineIndex < 0 ? 0 : current.timelineIndex;
+    final activeIndex = current.timelineIndex.clamp(0, OrderStatus.timelineFlow.length - 1);
+    final allDone = current == OrderStatus.completed;
 
     return Column(
       children: [
@@ -26,8 +26,8 @@ class OrderStatusTimeline extends StatelessWidget {
           _TimelineStep(
             status: OrderStatus.timelineFlow[i],
             label: OrderStatus.timelineFlow[i].label(l10n),
-            isActive: i == activeIndex,
-            isCompleted: i < activeIndex || current == OrderStatus.completed,
+            isActive: !allDone && i == activeIndex,
+            isCompleted: allDone ? true : i < activeIndex,
             isLast: i == OrderStatus.timelineFlow.length - 1,
           ),
         ],
@@ -89,9 +89,12 @@ class _TimelineStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dotColor = isCompleted || isActive ? status.color : Colors.grey.shade300;
-    final lineColor = isCompleted ? status.color.withValues(alpha: 0.5) : Colors.grey.shade300;
-    final textColor = isActive || isCompleted ? const Color(0xFF5D4037) : Colors.brown.shade400;
+    final accent = status.color;
+    final dotColor = isCompleted || isActive ? accent : Colors.grey.shade300;
+    final lineColor = isCompleted ? accent.withValues(alpha: 0.45) : Colors.grey.shade300;
+    final textColor = isActive || isCompleted
+        ? const Color(0xFF5D4037)
+        : Colors.brown.shade400;
 
     return IntrinsicHeight(
       child: Row(
@@ -101,26 +104,32 @@ class _TimelineStep extends StatelessWidget {
             width: 36,
             child: Column(
               children: [
-                Container(
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 280),
+                  curve: Curves.easeOutCubic,
                   width: 28,
                   height: 28,
                   decoration: BoxDecoration(
-                    color: dotColor.withValues(alpha: isActive ? 0.2 : 0.12),
+                    color: dotColor.withValues(alpha: isActive ? 0.22 : 0.12),
                     shape: BoxShape.circle,
-                    border: Border.all(color: dotColor, width: isActive ? 2.5 : 1.5),
+                    border: Border.all(
+                      color: dotColor,
+                      width: isActive ? 2.5 : 1.5,
+                    ),
                   ),
                   child: Icon(
-                    status.icon,
+                    isCompleted && !isActive
+                        ? Icons.check_rounded
+                        : status.icon,
                     size: 15,
                     color: dotColor,
                   ),
                 ),
                 if (!isLast)
                   Expanded(
-                    child: Container(
-                      width: 2,
-                      margin: const EdgeInsets.symmetric(vertical: 4),
-                      color: lineColor,
+                    child: CustomPaint(
+                      painter: _DashedLinePainter(color: lineColor),
+                      child: const SizedBox(width: 2),
                     ),
                   ),
               ],
@@ -129,13 +138,14 @@ class _TimelineStep extends StatelessWidget {
           Expanded(
             child: Padding(
               padding: EdgeInsets.only(bottom: isLast ? 0 : 18, top: 4),
-              child: Text(
-                label,
+              child: AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 220),
                 style: TextStyle(
                   fontWeight: isActive ? FontWeight.w900 : FontWeight.w700,
                   fontSize: 14,
                   color: textColor,
                 ),
+                child: Text(label),
               ),
             ),
           ),
@@ -143,4 +153,29 @@ class _TimelineStep extends StatelessWidget {
       ),
     );
   }
+}
+
+class _DashedLinePainter extends CustomPainter {
+  _DashedLinePainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+
+    const dashHeight = 5.0;
+    const gap = 4.0;
+    var y = 4.0;
+    while (y < size.height - 4) {
+      canvas.drawLine(Offset(size.width / 2, y), Offset(size.width / 2, y + dashHeight), paint);
+      y += dashHeight + gap;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedLinePainter oldDelegate) => oldDelegate.color != color;
 }

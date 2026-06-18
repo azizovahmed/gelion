@@ -1,6 +1,6 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../../../../core/widgets/safe_network_image.dart';
 import '../../data/category_icon_registry.dart';
 import '../../domain/entities/menu_category.dart';
 import '../../domain/food_image_url.dart';
@@ -24,7 +24,7 @@ class CategoryNetworkAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final url = normalizeFoodImageUrl(category?.imageUrl ?? '');
+    final url = resolveDisplayImageUrl(category?.imageUrl ?? '');
     final hasUrl = isRenderableNetworkImageUrl(url);
     final iconColor = active
         ? Colors.white
@@ -32,14 +32,13 @@ class CategoryNetworkAvatar extends StatelessWidget {
 
     if (category != null && hasUrl) {
       return ClipOval(
-        child: CachedNetworkImage(
+        child: SafeNetworkImage(
           imageUrl: url,
           width: size,
           height: size,
           fit: BoxFit.cover,
           memCacheWidth: (size * 2).round().clamp(64, 256),
-          placeholder: (_, _) => _IconFallback(icon: icon, size: size, color: iconColor),
-          errorWidget: (_, _, _) => _IconFallback(icon: icon, size: size, color: iconColor),
+          errorLabel: '',
         ),
       );
     }

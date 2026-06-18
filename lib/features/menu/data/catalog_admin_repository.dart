@@ -4,12 +4,17 @@ import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
+import '../../../core/firebase/firebase_media_api.dart';
+import '../domain/banner_image_pipeline.dart';
+import '../domain/banner_list_utils.dart';
 import '../domain/entities/menu_category.dart';
 import '../domain/entities/promo_banner.dart';
 import '../domain/food_image_url.dart';
 import '../domain/home_product.dart';
 import '../domain/product_image_debug.dart';
+import '../domain/product_image_pipeline.dart';
 import '../domain/product_image_prepare.dart';
+import 'banner_image_url_resolver.dart';
 import 'category_image_url_resolver.dart';
 import 'food_catalog_merge.dart';
 import 'product_image_url_resolver.dart';
@@ -19,8 +24,8 @@ class CatalogAdminRepository {
   CatalogAdminRepository({
     FirebaseFirestore? firestore,
     FirebaseStorage? storage,
-  })  : _db = firestore ?? FirebaseFirestore.instance,
-        _storage = storage ?? FirebaseStorage.instance;
+  })  : _db = firestore ?? FirebaseMediaApi.firestore,
+        _storage = storage ?? FirebaseMediaApi.storage;
 
   final FirebaseFirestore _db;
   final FirebaseStorage _storage;
@@ -38,7 +43,9 @@ class CatalogAdminRepository {
     final id = category.id.isNotEmpty ? category.id : _db.collection('categories').doc().id;
     var imageUrl = category.imageUrl;
     if (imageBytes != null && imageBytes.isNotEmpty) {
-      imageUrl = await _uploadBytes('categories/$id/avatar.jpg', imageBytes);
+      final categoryPath = 'categories/$id/avatar.jpg';
+      await _uploadBytes(categoryPath, imageBytes);
+      imageUrl = await _storage.ref().child(categoryPath).getDownloadURL();
     }
     final data = <String, dynamic>{
       'id': id,
@@ -84,7 +91,8 @@ class CatalogAdminRepository {
 
   Future<void> saveFood(HomeProduct food, {Uint8List? imageBytes, bool setCreatedAt = false}) async {
     final id = food.id.isNotEmpty ? food.id : _db.collection('foods').doc().id;
-    var imageUrl = food.imageUrl.trim();
+    var imagePath = food.imagePath.trim();
+    String? fullImageUrl;
 
     logProductImageDebug(
       'saveFood:start',
@@ -93,11 +101,23 @@ class CatalogAdminRepository {
     );
 
     if (imageBytes != null && imageBytes.isNotEmpty) {
+      imagePath = 'foods/$id/cover.jpg';
       final prepared = await prepareProductImageBytesForStorage(imageBytes);
       try {
-        imageUrl = await _uploadBytes('foods/$id/cover.jpg', prepared);
+        await _uploadBytes(imagePath, prepared);
+        final exists = await ProductImagePipeline.storageFileExists(imagePath);
+        if (!exists) {
+          throw StateError(
+            'Rasm Storage ga yozildi, lekin tekshiruvda topilmadi: $imagePath',
+          );
+        }
+        final verifyUrl = await ProductImagePipeline.downloadUrlForPath(imagePath);
+        if (verifyUrl == null || verifyUrl.isEmpty) {
+          throw StateError('downloadURL olinmadi: $imagePath');
+        }
+        fullImageUrl = verifyUrl;
         developer.log(
-          '[saveFood] Storage OK | image=$imageUrl',
+          '[saveFood] Storage OK | imagePath=$imagePath | url=$verifyUrl',
           name: 'ProductImage',
         );
       } catch (e, st) {
@@ -111,11 +131,19 @@ class CatalogAdminRepository {
           'Rasm Firebase Storage ga yuklanmadi. Storage qoidalarini tekshiring.',
         );
       }
+    } else if (imagePath.isEmpty) {
+      final existing = await _db.collection('foods').doc(id).get();
+      final prev = existing.data() ?? {};
+      imagePath = parseFoodImagePath(prev, documentId: id);
+      if (imagePath.isEmpty &&
+          (parseFoodImageUrl(prev).isNotEmpty || prev.containsKey('image') || prev.containsKey('imageUrl'))) {
+        imagePath = 'foods/$id/cover.jpg';
+      }
+      fullImageUrl = parseFoodImageUrl(prev);
     }
 
-    final trimmedUrl = imageUrl.trim();
-    if (imageBytes != null && imageBytes.isNotEmpty && trimmedUrl.isEmpty) {
-      throw StateError('downloadURL olinmadi. Qayta urinib ko‘ring.');
+    if ((fullImageUrl == null || fullImageUrl!.isEmpty) && imagePath.isNotEmpty) {
+      fullImageUrl = await FirebaseMediaApi.resolveFullImageUrl(imagePath: imagePath);
     }
 
     final data = <String, dynamic>{
@@ -133,23 +161,34 @@ class CatalogAdminRepository {
         'ingredients': food.ingredients,
       if (food.category != null && food.category!.isNotEmpty) 'categoryName': food.category,
       if (setCreatedAt) 'createdAt': FieldValue.serverTimestamp(),
+      'image': FieldValue.delete(),
+      'imageBytes': FieldValue.delete(),
     };
 
-    if (trimmedUrl.isNotEmpty) {
-      data['image'] = trimmedUrl;
-      data['imageUrl'] = trimmedUrl;
-      data['imageBytes'] = FieldValue.delete();
-    } else if (imageBytes == null || imageBytes.isEmpty) {
-      // Tahrirlashda yangi rasm tanlanmasa — mavjud URL saqlanadi.
-      final existing = await _db.collection('foods').doc(id).get();
-      final prev = existing.data();
-      if (prev != null) {
-        final kept = parseFoodImageUrl(prev);
-        if (kept.isNotEmpty) {
-          data['image'] = kept;
-          data['imageUrl'] = kept;
-        }
+    if (imagePath.isNotEmpty) {
+      data['imagePath'] = imagePath;
+      data['image_path'] = imagePath;
+    } else {
+      data['imagePath'] = FieldValue.delete();
+      data['image_path'] = FieldValue.delete();
+    }
+
+    if (fullImageUrl != null && fullImageUrl!.trim().isNotEmpty) {
+      final url = fullImageUrl!.trim();
+      if (isRenderableNetworkImageUrl(url)) {
+        data['imageUrl'] = url;
+        data['image_url'] = url;
+      } else {
+        data['imageUrl'] = FieldValue.delete();
+        data['image_url'] = FieldValue.delete();
+        developer.log(
+          '[saveFood] imageUrl rad etildi (to‘liq URL emas): $url',
+          name: 'ProductImage',
+        );
       }
+    } else {
+      data['imageUrl'] = FieldValue.delete();
+      data['image_url'] = FieldValue.delete();
     }
 
     logProductImageDebug(
@@ -166,7 +205,7 @@ class CatalogAdminRepository {
     }
 
     developer.log(
-      '[saveFood] Firestore foods/$id | image=$trimmedUrl',
+      '[saveFood] Firestore foods/$id | imagePath=$imagePath | imageUrl=$fullImageUrl',
       name: 'ProductImage',
     );
   }
@@ -181,28 +220,88 @@ class CatalogAdminRepository {
   // ——— Banners ———
 
   Stream<List<PromoBanner>> watchAllBanners() {
-    return _db.collection('banners').snapshots().map((snap) {
-      final list = snap.docs.map(PromoBanner.fromDoc).toList();
-      list.sort((a, b) {
-        final ca = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-        final cb = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-        return cb.compareTo(ca);
-      });
-      return list;
+    return _db.collection('banners').snapshots().asyncMap((snap) async {
+      final list = dedupeBannersById(snap.docs.map(PromoBanner.fromDoc));
+      sortBannersForCarousel(list);
+      return resolveBannerImageUrls(list);
     });
   }
 
   Future<void> saveBanner(PromoBanner banner, {Uint8List? imageBytes, bool setCreatedAt = false}) async {
-    final id = banner.id.isNotEmpty ? banner.id : _db.collection('banners').doc().id;
-    var imageUrl = banner.imageUrl;
+    final isNew = banner.id.isEmpty;
+    final id = isNew ? _db.collection('banners').doc().id : banner.id;
+    var imagePath = banner.imagePath.trim();
+    String? fullImageUrl;
+
     if (imageBytes != null && imageBytes.isNotEmpty) {
-      imageUrl = await _uploadBytes('banners/$id/banner.jpg', imageBytes);
+      imagePath = 'banners/$id/banner.jpg';
+      final prepared = await prepareProductImageBytesForStorage(imageBytes);
+      try {
+        await _uploadBytes(imagePath, prepared);
+        final verifyUrl = await BannerImagePipeline.downloadUrlForPath(imagePath);
+        if (verifyUrl == null || verifyUrl.isEmpty) {
+          throw StateError('Banner downloadURL olinmadi: $imagePath');
+        }
+        fullImageUrl = FirebaseMediaApi.normalizeDownloadUrl(verifyUrl);
+        developer.log(
+          '[saveBanner] Storage OK | bannerId=$id | imagePath=$imagePath | imageUrl=$fullImageUrl',
+          name: 'BannerImage',
+        );
+      } catch (e, st) {
+        developer.log(
+          '[saveBanner] Storage FAILED: $e',
+          name: 'BannerImage',
+          error: e,
+          stackTrace: st,
+        );
+        throw StateError(
+          'Banner rasmi Firebase Storage ga yuklanmadi. Storage qoidalarini tekshiring.',
+        );
+      }
+    } else if (imagePath.isEmpty) {
+      final prev = await _db.collection('banners').doc(id).get();
+      final prevData = prev.data() ?? {};
+      imagePath = parseBannerImagePath(prevData, documentId: id);
+      if (imagePath.isEmpty &&
+          (parseFoodImageUrl(prevData).isNotEmpty ||
+              prevData.containsKey('image') ||
+              prevData.containsKey('imageUrl'))) {
+        imagePath = 'banners/$id/banner.jpg';
+      }
+      fullImageUrl = parseFoodImageUrl(prevData);
     }
-    final data = banner
-        .copyWithId(id, imageUrl: imageUrl)
-        .toMap();
-    if (setCreatedAt) {
+
+    if ((fullImageUrl == null || fullImageUrl!.isEmpty) && imagePath.isNotEmpty) {
+      fullImageUrl = await FirebaseMediaApi.resolveFullImageUrl(imagePath: imagePath);
+    }
+
+    if (imagePath.isEmpty) {
+      throw StateError('Banner rasmi yuklanmadi. Qayta urinib ko‘ring.');
+    }
+
+    final data = banner.copyWithId(id, imagePath: imagePath).toMap();
+    if (isNew || setCreatedAt) {
       data['createdAt'] = FieldValue.serverTimestamp();
+    }
+    data['updatedAt'] = FieldValue.serverTimestamp();
+    data['image'] = FieldValue.delete();
+    data['image_path'] = imagePath;
+    if (fullImageUrl != null && fullImageUrl!.trim().isNotEmpty) {
+      final url = FirebaseMediaApi.normalizeDownloadUrl(fullImageUrl!.trim());
+      if (isRenderableNetworkImageUrl(url)) {
+        data['imageUrl'] = url;
+        data['image_url'] = url;
+      } else {
+        data['imageUrl'] = FieldValue.delete();
+        data['image_url'] = FieldValue.delete();
+        developer.log(
+          '[saveBanner] imageUrl rad etildi (to‘liq URL emas): $url',
+          name: 'BannerImage',
+        );
+      }
+    } else {
+      data['imageUrl'] = FieldValue.delete();
+      data['image_url'] = FieldValue.delete();
     }
     await _db.collection('banners').doc(id).set(data, SetOptions(merge: true));
   }
@@ -214,19 +313,19 @@ class CatalogAdminRepository {
     } catch (_) {}
   }
 
-  Future<String> _uploadBytes(String path, Uint8List bytes) async {
+  Future<void> _uploadBytes(String path, Uint8List bytes) async {
     final ref = _storage.ref().child(path);
     await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
-    return ref.getDownloadURL();
   }
 }
 
 extension _PromoBannerCopy on PromoBanner {
-  PromoBanner copyWithId(String id, {String? imageUrl}) => PromoBanner(
+  PromoBanner copyWithId(String id, {String? imagePath}) => PromoBanner(
         id: id,
         title: title,
         subtitle: subtitle,
-        imageUrl: imageUrl ?? this.imageUrl,
+        imageUrl: imageUrl,
+        imagePath: imagePath ?? this.imagePath,
         buttonText: buttonText,
         link: link,
         discount: discount,

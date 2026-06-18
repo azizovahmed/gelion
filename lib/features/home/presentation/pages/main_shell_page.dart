@@ -1,27 +1,33 @@
+import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../../core/firebase/firebase_media_api.dart';
 import '../../../../core/l10n/app_l10n.dart';
 import '../../../../core/locale/locale_controller.dart';
-import '../../../../core/services/firebase_error_mapper.dart';
 import '../../../auth/domain/entities/app_user.dart';
 import '../../../auth/domain/repositories/auth_repository.dart';
-import '../../../auth/presentation/pages/register_page.dart';
+import '../../../auth/presentation/pages/login_page.dart';
 import '../../../cart/domain/entities/cart_line.dart';
 import '../../../cart/presentation/pages/crave_cart_page.dart';
 import '../../../feedback/data/firebase_feedback_repository.dart';
 import '../../../feedback/domain/repositories/feedback_repository.dart';
 import '../../../menu/domain/home_product.dart';
 import '../../../orders/data/firebase_order_repository.dart';
+import '../../../orders/presentation/pages/user_order_history_page.dart';
+import '../../../profile/application/profile_photo_crop_helper.dart';
+import '../../../profile/application/profile_photo_file_picker.dart';
+import '../../../profile/application/profile_photo_local_cache.dart';
+import '../../../profile/application/profile_photo_permissions.dart';
+import '../../../menu/domain/food_image_url.dart';
 import '../../../settings/presentation/pages/account_settings_page.dart';
 import '../widgets/crave_floating_bottom_nav.dart';
 import 'home_feed_page.dart';
-
-const _kAvatarPlaceholderAsset = 'assets/onboarding_pizza.png';
 
 String _cacheBustedProfileImageUrl(String url, int version) {
   if (version <= 0) return url;
@@ -75,7 +81,7 @@ class _MainShellPageState extends State<MainShellPage> {
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(
-        builder: (_) => RegisterPage(
+        builder: (_) => LoginPage(
           authRepository: widget.authRepository,
           onThemeChanged: widget.onThemeChanged,
           localeController: widget.localeController,
@@ -162,19 +168,14 @@ class _MainShellPageState extends State<MainShellPage> {
       ),
       _ProfileBody(
         profile: _profile,
+        profileTabActive: _index == 2,
         authRepository: widget.authRepository,
         feedbackRepository: _feedbackRepository,
         onThemeChanged: widget.onThemeChanged,
         onLogout: _logout,
         localeController: widget.localeController,
         onProfileUpdated: _loadProfile,
-        onAvatarUploaded: (url) {
-          if (!mounted) return;
-          final p = _profile;
-          if (p != null) {
-            setState(() => _profile = p.copyWithPhotoUrl(url));
-          }
-        },
+        onOpenCart: () => setState(() => _index = 1),
       ),
     ];
 
@@ -210,16 +211,20 @@ class _PhotoSourceTile extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onTap,
+    this.destructive = false,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onTap;
+  final bool destructive;
 
   @override
   Widget build(BuildContext context) {
+    final accent = destructive ? const Color(0xFFC62828) : const Color(0xFFFF8C00);
+    final bg = destructive ? const Color(0xFFFFEBEE) : const Color(0xFFFFF6ED);
     return Material(
-      color: const Color(0xFFFFF6ED),
+      color: bg,
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
@@ -236,19 +241,26 @@ class _PhotoSourceTile extends StatelessWidget {
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFFF8C00).withValues(alpha: 0.2),
+                      color: accent.withValues(alpha: 0.2),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
                   ],
                 ),
-                child: Icon(icon, color: const Color(0xFFFF8C00), size: 24),
+                child: Icon(icon, color: accent, size: 24),
               ),
               const SizedBox(width: 14),
               Expanded(
-                child: Text(label, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                    color: destructive ? const Color(0xFFB71C1C) : const Color(0xFF2B1E16),
+                  ),
+                ),
               ),
-              const Icon(Icons.chevron_right_rounded, color: Color(0xFFFFB74D)),
+              Icon(Icons.chevron_right_rounded, color: destructive ? const Color(0xFFEF9A9A) : const Color(0xFFFFB74D)),
             ],
           ),
         ),
@@ -260,263 +272,56 @@ class _PhotoSourceTile extends StatelessWidget {
 class _ProfileBody extends StatefulWidget {
   const _ProfileBody({
     required this.profile,
+    required this.profileTabActive,
     required this.authRepository,
     required this.feedbackRepository,
     required this.onThemeChanged,
     required this.onLogout,
     required this.localeController,
     required this.onProfileUpdated,
-    required this.onAvatarUploaded,
+    required this.onOpenCart,
   });
 
   final AppUser? profile;
+  final bool profileTabActive;
   final AuthRepository authRepository;
   final FeedbackRepository feedbackRepository;
   final ValueChanged<ThemeMode> onThemeChanged;
   final VoidCallback onLogout;
   final LocaleController localeController;
   final Future<void> Function() onProfileUpdated;
-  final ValueChanged<String> onAvatarUploaded;
+  final VoidCallback onOpenCart;
 
   @override
   State<_ProfileBody> createState() => _ProfileBodyState();
 }
 
-class _ProfileBodyState extends State<_ProfileBody> with SingleTickerProviderStateMixin {
-  bool _busyPhoto = false;
-  int _photoNonce = 0;
-  Uint8List? _localAvatarBytes;
-  late final AnimationController _editTapCtrl = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 110),
-    reverseDuration: const Duration(milliseconds: 160),
-  );
-  late final Animation<double> _editTapScale = CurvedAnimation(
-    parent: _editTapCtrl,
-    curve: Curves.easeOutCubic,
-    reverseCurve: Curves.easeInCubic,
-  );
+class _ProfileBodyState extends State<_ProfileBody> {
+  String? _loadedUid;
 
   @override
-  void dispose() {
-    _editTapCtrl.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _syncProfileScope();
+    widget.onProfileUpdated();
   }
 
-  String? _photoUrl() {
-    final u = widget.profile?.photoUrl?.trim();
-    if (u != null && u.isNotEmpty) return u;
-    return null;
-  }
-
-  Future<void> _showPhotoOptions() async {
-    if (_busyPhoto) return;
-    final l10n = context.l10n;
-    final theme = Theme.of(context);
-    final selected = await showModalBottomSheet<int>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        final bottom = MediaQuery.paddingOf(sheetContext).bottom;
-        return Padding(
-          padding: EdgeInsets.fromLTRB(16, 0, 16, 12 + bottom),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: theme.cardColor,
-              borderRadius: BorderRadius.circular(28),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFFFF8C00).withValues(alpha: 0.18),
-                  blurRadius: 28,
-                  offset: const Offset(0, 12),
-                ),
-              ],
-            ),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    l10n.profilePhotoTitle,
-                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
-                  ),
-                  const SizedBox(height: 16),
-                  _PhotoSourceTile(
-                    icon: Icons.photo_camera_rounded,
-                    label: l10n.profilePhotoCamera,
-                    onTap: () => Navigator.of(sheetContext).pop(1),
-                  ),
-                  const SizedBox(height: 10),
-                  _PhotoSourceTile(
-                    icon: Icons.photo_library_rounded,
-                    label: l10n.profilePhotoGallery,
-                    onTap: () => Navigator.of(sheetContext).pop(2),
-                  ),
-                  const SizedBox(height: 14),
-                  SizedBox(
-                    width: double.infinity,
-                    child: TextButton(
-                      style: TextButton.styleFrom(
-                        foregroundColor: theme.colorScheme.onSurfaceVariant,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      ),
-                      onPressed: () => Navigator.of(sheetContext).pop(),
-                      child: Text(l10n.profileCancel, style: const TextStyle(fontWeight: FontWeight.w700)),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-    if (selected == null || !mounted) return;
-    if (selected == 1) {
-      await _pickCropUpload(ImageSource.camera);
-      return;
-    }
-    if (selected == 2) {
-      await _pickCropUpload(ImageSource.gallery);
+  @override
+  void didUpdateWidget(covariant _ProfileBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.profile?.uid != widget.profile?.uid) {
+      _syncProfileScope();
+      widget.onProfileUpdated();
     }
   }
 
-  List<PlatformUiSettings> _cropUiSettings() {
-    final l10n = context.l10n;
-    if (kIsWeb) {
-      final w = MediaQuery.sizeOf(context).width;
-      return [
-        WebUiSettings(
-          context: context,
-          presentStyle: WebPresentStyle.dialog,
-          size: CropperSize(
-            width: (w - 48).clamp(280, 640).toInt(),
-            height: 520,
-          ),
-          modal: true,
-          barrierColor: Colors.black54,
-        ),
-      ];
-    }
-    return [
-      AndroidUiSettings(
-        toolbarTitle: l10n.profilePhotoTitle,
-        toolbarWidgetColor: Colors.white,
-        toolbarColor: const Color(0xFFFF8C00),
-        backgroundColor: Colors.black,
-        activeControlsWidgetColor: const Color(0xFFFFB300),
-        dimmedLayerColor: Colors.black87,
-        cropFrameColor: Colors.white,
-        cropGridColor: Colors.white70,
-        lockAspectRatio: true,
-      ),
-      IOSUiSettings(
-        title: l10n.profilePhotoTitle,
-        aspectRatioLockEnabled: true,
-        resetAspectRatioEnabled: false,
-      ),
-    ];
+  void _syncProfileScope() {
+    final uid = widget.profile?.uid ?? '';
+    if (_loadedUid == uid) return;
+    _loadedUid = uid;
   }
 
-  Future<void> _pickCropUpload(ImageSource source) async {
-    final l10n = context.l10n;
-    final picker = ImagePicker();
-    try {
-      final x = await picker.pickImage(
-        source: source,
-        maxWidth: 2048,
-        maxHeight: 2048,
-        imageQuality: 92,
-      );
-      if (x == null || !mounted) return;
 
-      final cropped = await ImageCropper().cropImage(
-        sourcePath: x.path,
-        aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
-        compressFormat: ImageCompressFormat.jpg,
-        compressQuality: 88,
-        uiSettings: _cropUiSettings(),
-      );
-      if (!mounted) return;
-      if (cropped == null) return;
-
-      final bytes = await XFile(cropped.path).readAsBytes();
-      if (bytes.isEmpty) return;
-
-      final mem = Uint8List.fromList(bytes);
-      setState(() {
-        _localAvatarBytes = mem;
-        _busyPhoto = true;
-      });
-      try {
-        final url = await widget.authRepository.updateProfilePhotoBytes(bytes, contentType: 'image/jpeg');
-        widget.onAvatarUploaded(url);
-        if (!mounted) return;
-        setState(() {
-          _localAvatarBytes = null;
-          _photoNonce++;
-        });
-        await widget.onProfileUpdated();
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: const Color(0xFF2A2218),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-            content: Row(
-              children: [
-                const Icon(Icons.check_circle_rounded, color: Color(0xFFFFB74D)),
-                const SizedBox(width: 12),
-                Expanded(child: Text(l10n.profilePhotoUploadSuccess, style: const TextStyle(fontWeight: FontWeight.w700))),
-              ],
-            ),
-          ),
-        );
-      } catch (e) {
-        if (mounted) {
-          setState(() => _localAvatarBytes = null);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              behavior: SnackBarBehavior.floating,
-              backgroundColor: const Color(0xFF3E2723),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              content: Row(
-                children: [
-                  const Icon(Icons.error_outline_rounded, color: Color(0xFFFFAB91)),
-                  const SizedBox(width: 12),
-                  Expanded(child: Text(FirebaseErrorMapper.map(l10n, e), style: const TextStyle(fontWeight: FontWeight.w700))),
-                ],
-              ),
-            ),
-          );
-        }
-      } finally {
-        if (mounted) setState(() => _busyPhoto = false);
-      }
-    } catch (_) {
-      if (mounted) {
-        setState(() => _localAvatarBytes = null);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: const Color(0xFF3E2723),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-            content: Row(
-              children: [
-                const Icon(Icons.error_outline_rounded, color: Color(0xFFFFAB91)),
-                const SizedBox(width: 12),
-                Expanded(child: Text(l10n.profilePhotoUploadFailed, style: const TextStyle(fontWeight: FontWeight.w700))),
-              ],
-            ),
-          ),
-        );
-      }
-    }
-  }
 
   Future<void> _confirmLogout() async {
     final l10n = context.l10n;
@@ -567,8 +372,6 @@ class _ProfileBodyState extends State<_ProfileBody> with SingleTickerProviderSta
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final top = MediaQuery.paddingOf(context).top;
     final width = MediaQuery.sizeOf(context).width;
-    final compact = width < 380;
-    final avatarRadius = (width * 0.125).clamp(38.0, 58.0);
     final bg = isDark ? const Color(0xFF141018) : const Color(0xFFFFF9F0);
     final name = widget.profile?.fullName ?? l10n.guestName;
     final email = widget.profile?.email ?? 'email@gelion.uz';
@@ -582,157 +385,72 @@ class _ProfileBodyState extends State<_ProfileBody> with SingleTickerProviderSta
           padding: EdgeInsets.fromLTRB(18, top + 10, 18, 120),
           child: Column(
             children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Container(
-                    padding: EdgeInsets.fromLTRB(18, 14, 18, compact ? 96 : 108),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(30),
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [Color(0xFFFFA726), Color(0xFFFF7A00)],
+              Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(32),
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFFFFA726), Color(0xFFFF7A00)],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFFF8C00).withValues(alpha: 0.32),
+                      blurRadius: 26,
+                      offset: const Offset(0, 12),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          const CircleAvatar(
+                            radius: 22,
+                            backgroundColor: Colors.white24,
+                            backgroundImage: AssetImage('assets/onboarding_pizza.png'),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              l10n.appTitle,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 26,
+                                fontWeight: FontWeight.w900,
+                                fontStyle: FontStyle.italic,
+                                color: Colors.white,
+                                height: 1.05,
+                              ),
+                            ),
+                          ),
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.22),
+                              shape: BoxShape.circle,
+                            ),
+                            child: IconButton(
+                              icon: const Icon(Icons.shopping_bag_outlined, color: Colors.white, size: 22),
+                              onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text(l10n.profileCartHintSnack)),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFFFF8C00).withValues(alpha: 0.32),
-                          blurRadius: 24,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
                     ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        const CircleAvatar(radius: 21, backgroundImage: AssetImage('assets/onboarding_pizza.png')),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            l10n.appTitle,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w900,
-                              fontStyle: FontStyle.italic,
-                              color: Colors.white,
-                              height: 1.05,
-                            ),
-                          ),
-                        ),
-                        Container(
-                          width: 42,
-                          height: 42,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.18),
-                            shape: BoxShape.circle,
-                          ),
-                          child: IconButton(
-                            icon: const Icon(Icons.shopping_bag_outlined, color: Colors.white),
-                            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(l10n.profileCartHintSnack)),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Positioned(
-                    bottom: -(avatarRadius + 22),
-                    left: 0,
-                    right: 0,
-                    child: Column(
-                      children: [
-                        Hero(
-                          tag: 'profile_avatar_hero',
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 380),
-                                switchInCurve: Curves.easeOutCubic,
-                                switchOutCurve: Curves.easeInCubic,
-                                transitionBuilder: (child, anim) {
-                                  return FadeTransition(
-                                    opacity: anim,
-                                    child: ScaleTransition(
-                                      scale: Tween<double>(begin: 0.92, end: 1).animate(anim),
-                                      child: child,
-                                    ),
-                                  );
-                                },
-                                child: _ProfileAvatarFace(
-                                  key: ValueKey<String>(
-                                    '${_photoUrl() ?? 'p'}_${_localAvatarBytes?.length ?? 0}_$_photoNonce',
-                                  ),
-                                  radius: avatarRadius,
-                                  photoUrl: _photoUrl(),
-                                  memoryBytes: _localAvatarBytes,
-                                  cacheVersion: _photoNonce,
-                                ),
-                              ),
-                              if (_busyPhoto)
-                                Container(
-                                  width: avatarRadius * 2,
-                                  height: avatarRadius * 2,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: Colors.black.withValues(alpha: 0.35),
-                                  ),
-                                  child: const Center(
-                                    child: SizedBox(
-                                      width: 36,
-                                      height: 36,
-                                      child: CircularProgressIndicator(strokeWidth: 3, color: Colors.white),
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        ScaleTransition(
-                          scale: Tween<double>(begin: 1, end: 0.96).animate(_editTapScale),
-                          child: Material(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(22),
-                            elevation: 2,
-                            shadowColor: const Color(0xFFFF8C00).withValues(alpha: 0.35),
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(22),
-                              splashColor: const Color(0xFFFF8C00).withValues(alpha: 0.12),
-                              highlightColor: const Color(0xFFFF8C00).withValues(alpha: 0.06),
-                              onTap: _busyPhoto
-                                  ? null
-                                  : () async {
-                                      await _editTapCtrl.forward();
-                                      await _editTapCtrl.reverse();
-                                      if (mounted) await _showPhotoOptions();
-                                    },
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(Icons.edit_rounded, size: 19, color: Color(0xFFFF8C00)),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      l10n.profileEditPhoto,
-                                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                    const SizedBox(height: 24),
+                  ],
+                ),
               ),
-              SizedBox(height: avatarRadius + 36),
+              const SizedBox(height: 12),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
@@ -782,7 +500,14 @@ class _ProfileBodyState extends State<_ProfileBody> with SingleTickerProviderSta
                 icon: Icons.history_rounded,
                 title: l10n.profileOrdersTitle,
                 subtitle: l10n.profileOrdersSubtitle,
-                onTap: () => _openWithTransition(const _OrderHistoryPage()),
+                onTap: () => _openWithTransition(
+                  UserOrderHistoryPage(
+                    onStartShopping: () {
+                      Navigator.of(context).pop();
+                      widget.onOpenCart();
+                    },
+                  ),
+                ),
               ),
               _ProfileActionTile(
                 icon: Icons.settings_rounded,
@@ -893,151 +618,7 @@ class _ProfileBodyState extends State<_ProfileBody> with SingleTickerProviderSta
   }
 }
 
-class _ProfileAvatarFace extends StatelessWidget {
-  const _ProfileAvatarFace({
-    super.key,
-    required this.radius,
-    this.photoUrl,
-    this.memoryBytes,
-    this.cacheVersion = 0,
-  });
 
-  final double radius;
-  final String? photoUrl;
-  final Uint8List? memoryBytes;
-  final int cacheVersion;
-
-  @override
-  Widget build(BuildContext context) {
-    final d = radius * 2;
-    final borderW = (radius * 0.085).clamp(3.0, 5.0);
-    final trimmed = photoUrl?.trim();
-    final hasUrl = trimmed != null && trimmed.isNotEmpty;
-    final useMemory = memoryBytes != null && memoryBytes!.isNotEmpty;
-    final requestUrl = hasUrl ? _cacheBustedProfileImageUrl(trimmed, cacheVersion) : null;
-
-    Widget inner;
-    if (useMemory) {
-      final b = memoryBytes!;
-      inner = TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0, end: 1),
-        duration: const Duration(milliseconds: 240),
-        curve: Curves.easeOutCubic,
-        builder: (context, v, _) {
-          return Opacity(
-            opacity: v,
-            child: Image.memory(
-              b,
-              width: d,
-              height: d,
-              fit: BoxFit.cover,
-              gaplessPlayback: true,
-            ),
-          );
-        },
-      );
-    } else if (requestUrl != null) {
-      inner = Image.network(
-        requestUrl,
-        width: d,
-        height: d,
-        fit: BoxFit.cover,
-        gaplessPlayback: true,
-        frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-          return AnimatedOpacity(
-            opacity: frame == null ? 0 : 1,
-            duration: const Duration(milliseconds: 340),
-            curve: Curves.easeOutCubic,
-            child: child,
-          );
-        },
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) return child;
-          return Container(
-            color: const Color(0xFFFFF3E0),
-            alignment: Alignment.center,
-            child: SizedBox(
-              width: radius * 0.55,
-              height: radius * 0.55,
-              child: const CircularProgressIndicator(strokeWidth: 2.5, color: Color(0xFFFF8C00)),
-            ),
-          );
-        },
-        errorBuilder: (_, _, _) => _AvatarPlaceholder(radius: radius),
-      );
-    } else {
-      inner = _AvatarPlaceholder(radius: radius);
-    }
-
-    return Container(
-      width: d,
-      height: d,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: borderW),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFFFF8C00).withValues(alpha: 0.32),
-            blurRadius: (radius * 0.42).clamp(14, 22),
-            spreadRadius: 0,
-            offset: Offset(0, (radius * 0.14).clamp(6, 12)),
-          ),
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
-            blurRadius: 16,
-            offset: const Offset(0, 7),
-          ),
-        ],
-      ),
-      child: ClipOval(child: inner),
-    );
-  }
-}
-
-class _AvatarPlaceholder extends StatelessWidget {
-  const _AvatarPlaceholder({required this.radius});
-
-  final double radius;
-
-  @override
-  Widget build(BuildContext context) {
-    final d = radius * 2;
-    return Container(
-      width: d,
-      height: d,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFFFE0B2), Color(0xFFFFCC80), Color(0xFFFFA726)],
-        ),
-      ),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          Image.asset(
-            _kAvatarPlaceholderAsset,
-            fit: BoxFit.cover,
-            errorBuilder: (_, _, _) => const SizedBox.shrink(),
-          ),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.black.withValues(alpha: 0.02),
-                  Colors.black.withValues(alpha: 0.18),
-                ],
-              ),
-            ),
-          ),
-          Icon(Icons.person_rounded, size: radius * 1.15, color: Colors.white.withValues(alpha: 0.92)),
-        ],
-      ),
-    );
-  }
-}
 
 class _ProfileActionTile extends StatelessWidget {
   const _ProfileActionTile({
@@ -1130,65 +711,3 @@ class _LanguageButton extends StatelessWidget {
   }
 }
 
-class _OrderHistoryPage extends StatelessWidget {
-  const _OrderHistoryPage();
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    return Scaffold(
-      backgroundColor: const Color(0xFFFFF9F0),
-      appBar: AppBar(
-        title: Text(l10n.orderHistoryTitle),
-        backgroundColor: Colors.white,
-        elevation: 0,
-      ),
-      body: ListView.separated(
-        padding: const EdgeInsets.all(16),
-        itemBuilder: (context, index) {
-          final idSuffix = 21 + index;
-          final count = 2 + (index % 3);
-          final amount = 38000 + index * 6400;
-          return Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, 6))],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(color: const Color(0xFFFFF1DF), borderRadius: BorderRadius.circular(14)),
-                  child: const Icon(Icons.receipt_long_rounded, color: Color(0xFFFF8C00)),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        l10n.orderHistoryOrder('CM-90$idSuffix'),
-                        style: const TextStyle(fontWeight: FontWeight.w800),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        l10n.orderHistoryLine(count, amount, l10n.currencySom),
-                        style: TextStyle(color: Colors.brown.shade600),
-                      ),
-                    ],
-                  ),
-                ),
-                const Icon(Icons.chevron_right_rounded),
-              ],
-            ),
-          );
-        },
-        separatorBuilder: (context, index) => const SizedBox(height: 10),
-        itemCount: 6,
-      ),
-    );
-  }
-}

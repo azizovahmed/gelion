@@ -1,9 +1,12 @@
+import 'dart:developer' as developer;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart';
 
 import '../food_catalog_merge.dart';
 import '../product_image_url_resolver.dart';
 import '../../domain/home_product.dart';
+import '../../domain/product_image_pipeline.dart';
 import '../../domain/repositories/food_repository.dart';
 
 /// Firestore `foods` — real-time.
@@ -28,17 +31,34 @@ class FirebaseFoodRepository implements FoodRepository {
 
   Future<List<HomeProduct>> _mapActive(QuerySnapshot<Map<String, dynamic>> snap) async {
     try {
-      var list = snap.docs
+      var list = <HomeProduct>[];
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final product = HomeProduct.fromDoc(doc);
+        if (kDebugMode) {
+          ProductImagePipeline.logFirestoreFields(
+            product.id.isNotEmpty ? product.id : doc.id,
+            data,
+          );
+        }
+        if (product.isActive && product.name.isNotEmpty) {
+          list.add(product);
+        }
+      }
+      list.sort((a, b) => a.name.compareTo(b.name));
+      list = await mergeFoodAndProductCollections(_db, list);
+      return resolveProductImageUrls(list);
+    } catch (e, st) {
+      developer.log(
+        'FirebaseFoodRepository._mapActive failed: $e',
+        name: 'ProductImage',
+        error: e,
+        stackTrace: st,
+      );
+      return snap.docs
           .map(HomeProduct.fromDoc)
           .where((f) => f.isActive && f.name.isNotEmpty)
           .toList();
-      list.sort((a, b) => a.name.compareTo(b.name));
-      list = await mergeFoodAndProductCollections(_db, list);
-      // Web: har mahsulot uchun Storage URL — uzoq “loading”, sahifa bo‘sh ko‘rinadi.
-      if (kIsWeb) return list;
-      return resolveProductImageUrls(list);
-    } catch (_) {
-      return <HomeProduct>[];
     }
   }
 }

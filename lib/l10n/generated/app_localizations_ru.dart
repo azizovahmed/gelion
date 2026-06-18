@@ -460,6 +460,17 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
+  String get cartOrderSuccessTitle => 'Заказ принят!';
+
+  @override
+  String cartOrderSuccessMessage(String orderNo, String total) {
+    return 'Номер заказа: $orderNo\nИтого: $total';
+  }
+
+  @override
+  String get cartOrderSuccessOk => 'Хорошо';
+
+  @override
   String get cartOrderFailed =>
       'Заказ не отправлен. Проверьте интернет или аккаунт.';
 
@@ -487,6 +498,12 @@ class AppLocalizationsRu extends AppLocalizations {
   String get profilePhotoGalleryHint => 'Выбрать с устройства';
 
   @override
+  String get profilePhotoFiles => 'Файлы';
+
+  @override
+  String get profilePhotoFilesHint => 'Выбрать файл с устройства';
+
+  @override
   String get profilePhotoPermissionDenied =>
       'Нет доступа. Включите в настройках.';
 
@@ -500,8 +517,10 @@ class AppLocalizationsRu extends AppLocalizations {
   String get profilePhotoUploading => 'Загрузка фото…';
 
   @override
-  String get profilePhotoUploadFailed =>
-      'Не удалось загрузить фото. Повторите попытку.';
+  String get profilePhotoUploadFailed => 'Не удалось загрузить фото';
+
+  @override
+  String get profilePhotoRemove => 'Удалить фото';
 
   @override
   String get profilePhotoUploadSuccess => 'Фото успешно загружено';
@@ -829,6 +848,9 @@ class AppLocalizationsRu extends AppLocalizations {
   String get adminBannerEdit => 'Редактировать баннер';
 
   @override
+  String get adminBannerChangeImage => 'Изменить изображение';
+
+  @override
   String get adminBannerTitle => 'Заголовок';
 
   @override
@@ -937,6 +959,9 @@ class AppLocalizationsRu extends AppLocalizations {
   String get orderStatusPending => 'Ожидает';
 
   @override
+  String get orderStatusAccepted => 'Принят';
+
+  @override
   String get orderStatusPreparing => 'Готовится';
 
   @override
@@ -952,7 +977,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get orderHistoryTitle => 'История заказов';
 
   @override
-  String get orderHistoryEmpty => 'Пока нет заказов';
+  String get orderHistoryEmpty => 'У вас пока нет заказов';
 
   @override
   String get orderHistoryEmptyHint => 'После оформления заказы появятся здесь';
@@ -985,6 +1010,49 @@ class AppLocalizationsRu extends AppLocalizations {
   String orderHistoryLine(int count, int amount, String currency) {
     return '$count товаров • $amount $currency';
   }
+
+  @override
+  String get orderHistoryPlaceOrder => 'Оформить заказ';
+
+  @override
+  String get orderHistorySearchHint => 'Номер заказа (#CM...)';
+
+  @override
+  String get orderFilterAll => 'Все';
+
+  @override
+  String get orderFilterToday => 'Сегодня';
+
+  @override
+  String get orderFilterWeek => '7 дней';
+
+  @override
+  String get orderFilterMonth => '30 дней';
+
+  @override
+  String get orderHistoryOffline => 'Офлайн — сохранённые заказы';
+
+  @override
+  String get orderDetailPayment => 'Способ оплаты';
+
+  @override
+  String get orderPaymentCash => 'Наличные';
+
+  @override
+  String get orderPaymentCard => 'Карта';
+
+  @override
+  String get orderPaymentOnline => 'Онлайн';
+
+  @override
+  String get orderHistoryRetry => 'Повторить';
+
+  @override
+  String get orderHistoryLoadFailed =>
+      'Не удалось загрузить данные. Попробуйте снова.';
+
+  @override
+  String get orderHistoryLoadMore => 'Загрузить ещё';
 
   @override
   String get promoSlide1Badge => 'АКЦИЯ';

@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
+import 'order_status_codec.dart';
+
 @immutable
 class AppOrderItem {
   const AppOrderItem({
@@ -27,12 +29,13 @@ class AppOrderItem {
       };
 
   factory AppOrderItem.fromMap(Map<String, dynamic> map) {
+    final image = (map['image'] ?? map['imageUrl'] as String?)?.toString().trim();
     return AppOrderItem(
-      productId: (map['productId'] ?? map['id'] ?? '') as String,
+      productId: (map['foodId'] ?? map['productId'] ?? map['id'] ?? '') as String,
       name: (map['name'] as String?) ?? '',
       price: _readInt(map['price']),
       quantity: _readInt(map['quantity']).clamp(1, 999),
-      imageUrl: (map['imageUrl'] as String?)?.trim(),
+      imageUrl: image != null && image.isNotEmpty ? image : null,
     );
   }
 }
@@ -51,8 +54,10 @@ class AppOrder {
     required this.status,
     required this.createdAt,
     this.orderNumber,
+    this.orderId,
     this.discount = 0,
     this.subtotal = 0,
+    this.paymentMethod = 'cash',
   });
 
   final String id;
@@ -66,10 +71,18 @@ class AppOrder {
   final String status;
   final DateTime createdAt;
   final String? orderNumber;
+  final String? orderId;
   final int discount;
   final int subtotal;
+  final String paymentMethod;
 
-  String get displayNumber => orderNumber ?? id;
+  String get displayNumber {
+    final no = orderNumber?.trim();
+    if (no != null && no.isNotEmpty) return no;
+    final oid = orderId?.trim();
+    if (oid != null && oid.isNotEmpty) return oid;
+    return id;
+  }
 
   int get itemCount => items.fold<int>(0, (s, e) => s + e.quantity);
 
@@ -87,20 +100,28 @@ class AppOrder {
       }
     }
 
+    final orderNo = (data['orderNumber'] ?? data['orderNo'] as String?)?.toString().trim();
+
     return AppOrder(
       id: doc.id,
       userId: (data['userId'] as String?) ?? '',
       customerName: (data['customerName'] ?? data['userName'] as String?)?.toString().trim() ?? '',
       phone: (data['phone'] ?? data['customerPhone'] as String?)?.toString().trim() ?? '',
       items: items,
-      totalPrice: _readInt(data['totalPrice'] ?? data['total']),
+      totalPrice: _readInt(
+        data['finalPrice'] ?? data['totalPrice'] ?? data['total'],
+      ),
       deliveryPrice: _readInt(data['deliveryPrice'] ?? data['delivery'] ?? data['deliveryFee']),
       address: _parseAddress(data['address']),
-      status: (data['status'] as String?)?.trim().toLowerCase() ?? 'pending',
+      status: _readStatus(data['status']),
       createdAt: _readDate(data['createdAt']) ?? DateTime.now(),
-      orderNumber: (data['orderNumber'] ?? data['orderNo'] as String?)?.toString(),
+      orderNumber: orderNo,
+      orderId: (data['orderId'] as String?)?.trim().isNotEmpty == true
+          ? (data['orderId'] as String).trim()
+          : doc.id,
       discount: _readInt(data['discount']),
-      subtotal: _readInt(data['subtotal']),
+      subtotal: _readInt(data['subtotal'] ?? data['totalPrice']),
+      paymentMethod: (data['paymentMethod'] as String?)?.trim().toLowerCase() ?? 'cash',
     );
   }
 }
@@ -130,4 +151,10 @@ DateTime? _readDate(dynamic value) {
   if (value is Timestamp) return value.toDate();
   if (value is DateTime) return value;
   return null;
+}
+
+String _readStatus(dynamic value) {
+  final raw = (value as String?)?.trim();
+  if (raw == null || raw.isEmpty) return OrderStatusCodec.defaultStatus;
+  return raw;
 }

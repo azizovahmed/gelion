@@ -1,13 +1,15 @@
 import 'dart:typed_data';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../../../../core/firebase/firebase_media_api.dart';
+import '../../../../core/widgets/safe_network_image.dart';
 import '../../domain/food_image_url.dart';
 import '../../domain/home_product.dart';
+import '../../domain/product_image_pipeline.dart';
 
-/// Firestore `image` (Storage HTTPS) → [CachedNetworkImage], yo‘q bo‘lsa placeholder.
-class ProductCoverImage extends StatelessWidget {
+/// Backend `imageUrl` (to‘liq HTTPS) yoki Firestore `imagePath` → Storage URL.
+class ProductCoverImage extends StatefulWidget {
   const ProductCoverImage({
     super.key,
     required this.product,
@@ -19,34 +21,130 @@ class ProductCoverImage extends StatelessWidget {
   });
 
   final HomeProduct product;
-  /// Admin preview (saqlashdan oldin); mobil — faqat [product.image].
   final Uint8List? memoryOverride;
   final BoxFit fit;
   final double? height;
   final double borderRadius;
   final bool topCornersOnly;
 
-  String get _networkUrl {
-    final url = normalizeFoodImageUrl(product.image);
-    if (isRenderableNetworkImageUrl(url)) return url;
-    return '';
+  @override
+  State<ProductCoverImage> createState() => _ProductCoverImageState();
+}
+
+class _ProductCoverImageState extends State<ProductCoverImage> {
+  static const _maxResolveAttempts = 2;
+  static const _maxLoadRetries = 1;
+
+  String? _resolvedUrl;
+  bool _loading = false;
+  int _resolveAttempts = 0;
+  int _loadRetries = 0;
+  String _cacheKey = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _bootstrap();
   }
 
-  Uint8List? get _fallbackBytes {
-    final b = product.imageBytes;
-    if (b != null && b.isNotEmpty) return b;
-    return null;
+  @override
+  void didUpdateWidget(ProductCoverImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final key =
+        '${widget.product.id}|${widget.product.imagePath}|${widget.product.imageUrl}|${widget.product.image}';
+    if (key != _cacheKey) {
+      _resolveAttempts = 0;
+      _loadRetries = 0;
+      _bootstrap();
+    }
   }
 
-  BorderRadius get _radius => topCornersOnly
-      ? BorderRadius.vertical(top: Radius.circular(borderRadius))
-      : BorderRadius.circular(borderRadius);
+  void _bootstrap() {
+    _cacheKey =
+        '${widget.product.id}|${widget.product.imagePath}|${widget.product.imageUrl}|${widget.product.image}';
+
+    final fromApi = FirebaseMediaApi.normalizeDownloadUrl(
+      resolveDisplayImageUrl(widget.product.imageUrl),
+    );
+    if (isRenderableNetworkImageUrl(fromApi)) {
+      setState(() {
+        _resolvedUrl = fromApi;
+        _loading = false;
+      });
+      return;
+    }
+    _resolveFromStorage();
+  }
+
+  Future<void> _resolveFromStorage() async {
+    if (_resolveAttempts >= _maxResolveAttempts) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _resolvedUrl = null;
+        });
+      }
+      return;
+    }
+    _resolveAttempts++;
+
+    final p = widget.product;
+    if (widget.memoryOverride != null && widget.memoryOverride!.isNotEmpty) {
+      setState(() {
+        _resolvedUrl = null;
+        _loading = false;
+      });
+      return;
+    }
+    if (p.imageBytes != null && p.imageBytes!.isNotEmpty) {
+      setState(() {
+        _resolvedUrl = null;
+        _loading = false;
+      });
+      return;
+    }
+    if (p.imagePath.isEmpty && p.image.isEmpty && p.id.isEmpty) {
+      setState(() {
+        _resolvedUrl = null;
+        _loading = false;
+      });
+      return;
+    }
+
+    setState(() => _loading = true);
+
+    final result = await ProductImagePipeline.resolveForProduct(p);
+    if (!mounted) return;
+
+    setState(() {
+      _loading = false;
+      _resolvedUrl = result.canRender ? result.downloadUrl : null;
+    });
+
+    ProductImagePipeline.logRenderStatus(
+      productId: p.id,
+      status: result.canRender ? 'success' : 'placeholder',
+      url: _resolvedUrl,
+      error: result.error,
+    );
+  }
+
+  void _onImageLoadFailed() {
+    if (_loadRetries >= _maxLoadRetries) return;
+    _loadRetries++;
+    _resolveAttempts = 0;
+    _resolveFromStorage();
+  }
+
+  BorderRadius get _radius => widget.topCornersOnly
+      ? BorderRadius.vertical(top: Radius.circular(widget.borderRadius))
+      : BorderRadius.circular(widget.borderRadius);
 
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final url = _networkUrl;
-    final localPreview = memoryOverride;
+    final localPreview = widget.memoryOverride;
+    final url = _resolvedUrl;
 
     return ClipRRect(
       borderRadius: _radius,
@@ -55,99 +153,72 @@ class ProductCoverImage extends StatelessWidget {
           final width = constraints.maxWidth.isFinite && constraints.maxWidth > 0
               ? constraints.maxWidth
               : MediaQuery.sizeOf(context).width;
-          final h = height ??
+          final h = widget.height ??
               (constraints.maxHeight.isFinite && constraints.maxHeight > 0
                   ? constraints.maxHeight
                   : 140.0);
 
           Widget child;
 
-          if (url.isNotEmpty) {
+          if (url != null && isRenderableNetworkImageUrl(url)) {
             final dpr = MediaQuery.devicePixelRatioOf(context);
             final memCacheWidth = (width * dpr).round().clamp(128, 1400);
-            child = CachedNetworkImage(
+            child = SafeNetworkImage(
               imageUrl: url,
-              cacheKey: '${product.id}|$url',
-              fit: fit,
+              cacheKey: '${widget.product.id}|${widget.product.imagePath}|$url',
+              fit: widget.fit,
               width: width,
               height: h,
               memCacheWidth: memCacheWidth,
-              fadeInDuration: const Duration(milliseconds: 300),
-              fadeOutDuration: const Duration(milliseconds: 120),
-              placeholder: (_, _) => _LoadingBox(dark: dark),
-              errorWidget: (_, _, error) => _DefaultFoodIcon(dark: dark),
+              onLoadFailed: _onImageLoadFailed,
+              loadingColor: dark ? const Color(0xFFFFB74D) : const Color(0xFFFF8C00),
+              errorLabel: 'Rasm yuklanmadi',
             );
           } else if (localPreview != null && localPreview.isNotEmpty) {
             child = Image.memory(
               localPreview,
               width: width,
               height: h,
-              fit: fit,
+              fit: widget.fit,
               gaplessPlayback: true,
               filterQuality: FilterQuality.medium,
-              errorBuilder: (_, _, _) => _DefaultFoodIcon(dark: dark),
+            );
+          } else if (_loading) {
+            child = ColoredBox(
+              color: dark ? const Color(0xFF2A2430) : const Color(0xFFFFF2E2),
+              child: Center(
+                child: SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: dark ? const Color(0xFFFFB74D) : const Color(0xFFFF8C00),
+                  ),
+                ),
+              ),
             );
           } else {
-            final bytes = _fallbackBytes;
-            if (bytes != null) {
+            final bytes = widget.product.imageBytes;
+            if (bytes != null && bytes.isNotEmpty) {
               child = Image.memory(
                 bytes,
                 width: width,
                 height: h,
-                fit: fit,
+                fit: widget.fit,
                 gaplessPlayback: true,
-                errorBuilder: (_, _, _) => _DefaultFoodIcon(dark: dark),
               );
             } else {
-              child = _DefaultFoodIcon(dark: dark);
+              child = SafeNetworkImage(
+                imageUrl: '',
+                width: width,
+                height: h,
+                errorLabel: 'Rasm topilmadi',
+              );
             }
           }
 
           return SizedBox(width: width, height: h, child: child);
         },
-      ),
-    );
-  }
-}
-
-class _LoadingBox extends StatelessWidget {
-  const _LoadingBox({required this.dark});
-
-  final bool dark;
-
-  @override
-  Widget build(BuildContext context) {
-    return ColoredBox(
-      color: dark ? const Color(0xFF2A2430) : const Color(0xFFFFF2E2),
-      child: Center(
-        child: SizedBox(
-          width: 28,
-          height: 28,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: dark ? const Color(0xFFFFB74D) : const Color(0xFFFF8C00),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _DefaultFoodIcon extends StatelessWidget {
-  const _DefaultFoodIcon({required this.dark});
-
-  final bool dark;
-
-  @override
-  Widget build(BuildContext context) {
-    return ColoredBox(
-      color: dark ? const Color(0xFF2A2430) : const Color(0xFFFFF3E0),
-      child: Center(
-        child: Icon(
-          Icons.restaurant_rounded,
-          size: 44,
-          color: dark ? const Color(0xFFFFB74D) : const Color(0xFFFF8C00),
-        ),
       ),
     );
   }

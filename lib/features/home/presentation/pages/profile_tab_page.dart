@@ -111,9 +111,7 @@ class _CraveMeltProfileTabState extends State<CraveMeltProfileTab> with TickerPr
   Future<void> _openOrderHistory(BuildContext context) async {
     await Navigator.of(context).push<void>(
       PageRouteBuilder<void>(
-        pageBuilder: (context, animation, secondaryAnimation) => UserOrderHistoryPage(
-          userId: FirebaseAuth.instance.currentUser?.uid ?? widget.profile?.uid,
-        ),
+        pageBuilder: (context, animation, secondaryAnimation) => const UserOrderHistoryPage(),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(
             opacity: CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),

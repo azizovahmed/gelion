@@ -25,12 +25,12 @@ abstract class AuthRepository {
     required String newPassword,
   });
 
-  /// Profil rasmini Storage ga yuklaydi, `users/{uid}.photoUrl` va Auth [User.photoURL]. Qaytaradi: download URL.
+  /// Profil rasmini `users/{uid}/profile.jpg` ga yuklaydi, `users/{uid}.profileImage` va Auth [User.photoURL].
   Future<String> updateProfilePhotoBytes(List<int> bytes, {String contentType = 'image/jpeg'});
 
   /// Tayyor rasm URL ni profilga yozadi (qayta yuklamasdan).
   Future<String> updateProfilePhotoUrl(String photoUrl);
 
-  /// `photoUrl` ni olib tashlaydi, Storage dagi faylni o‘chirishga harakat qiladi.
+  /// `profileImage` ni olib tashlaydi, Storage dagi faylni o‘chirishga harakat qiladi.
   Future<void> clearProfilePhoto();
 }

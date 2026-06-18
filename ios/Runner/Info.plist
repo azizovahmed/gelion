@@ -75,5 +75,12 @@
 	<string>Profil rasmini tanlash uchun galereyaga ruxsat kerak.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Profil rasmini olish uchun kamera ruxsati kerak.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+		<key>NSAllowsArbitraryLoadsInWebContent</key>
+		<true/>
+	</dict>
 </dict>
 </plist>

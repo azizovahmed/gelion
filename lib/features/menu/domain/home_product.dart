@@ -5,13 +5,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'cart_product_rules.dart';
 import 'product_image_parser.dart';
 
-/// Taom — Firestore `foods` kolleksiyasi (`imageUrl` / `image`, Storage HTTPS).
+/// Taom — Firestore `imagePath` → Firebase Storage → runtime download URL.
 class HomeProduct {
   const HomeProduct({
     required this.id,
     required this.name,
     required this.price,
-    required this.imageUrl,
+    this.imageUrl = '',
+    this.imagePath = '',
+    this.firestoreImage = '',
     this.imageBytes,
     this.category,
     this.categoryId,
@@ -28,6 +30,9 @@ class HomeProduct {
   final String name;
   final int price;
   final String imageUrl;
+  final String imagePath;
+  /// Raw Firestore `image` field (path or HTTPS URL).
+  final String firestoreImage;
   final Uint8List? imageBytes;
   final int stock;
   final String? category;
@@ -39,16 +44,22 @@ class HomeProduct {
   final bool isActive;
   final DateTime? createdAt;
 
-  /// Firestore `image` maydoni (Storage HTTPS URL).
-  String get image => imageUrl.trim();
+  /// Firestore `image` maydoni (Storage yo‘li yoki HTTPS URL).
+  String get image {
+    final raw = firestoreImage.trim();
+    if (raw.isNotEmpty) return raw;
+    return imageUrl.trim();
+  }
 
   bool get hasNetworkImage {
     final u = imageUrl.trim();
     return u.startsWith('http://') || u.startsWith('https://');
   }
 
+  /// Firestore/Storage zanjirida rasm borligi.
   bool get hasImage =>
       hasNetworkImage ||
+      imagePath.isNotEmpty ||
       (imageBytes != null && imageBytes!.isNotEmpty);
 
   /// Boshqa manbadan rasmni to‘ldiradi (masalan `products` kolleksiyasi).
@@ -56,6 +67,7 @@ class HomeProduct {
     if (hasImage || !other.hasImage) return this;
     return copyWith(
       imageUrl: other.imageUrl,
+      imagePath: other.imagePath,
       imageBytes: other.imageBytes,
     );
   }
@@ -75,15 +87,18 @@ class HomeProduct {
     final categoryName = (d['categoryName'] as String?)?.trim() ??
         (d['category'] as String?)?.trim();
 
-    final image = parseProductImageFields(d);
+    final id = (d['id'] as String?)?.trim().isNotEmpty == true
+        ? (d['id'] as String).trim()
+        : doc.id;
+    final image = parseProductImageFields(d, documentId: id);
 
     return HomeProduct(
-      id: (d['id'] as String?)?.trim().isNotEmpty == true
-          ? (d['id'] as String).trim()
-          : doc.id,
+      id: id,
       name: (d['name'] as String?)?.trim() ?? '',
       price: p,
       imageUrl: image.networkUrl,
+      imagePath: image.storagePath,
+      firestoreImage: (d['image'] as String?)?.trim() ?? '',
       imageBytes: image.imageBytes,
       category: categoryName,
       categoryId: categoryId,
@@ -99,6 +114,8 @@ class HomeProduct {
 
   HomeProduct copyWith({
     String? imageUrl,
+    String? imagePath,
+    String? firestoreImage,
     Uint8List? imageBytes,
     bool clearImageBytes = false,
   }) {
@@ -107,6 +124,8 @@ class HomeProduct {
       name: name,
       price: price,
       imageUrl: imageUrl ?? this.imageUrl,
+      imagePath: imagePath ?? this.imagePath,
+      firestoreImage: firestoreImage ?? this.firestoreImage,
       imageBytes: clearImageBytes ? null : (imageBytes ?? this.imageBytes),
       category: category,
       categoryId: categoryId,
@@ -121,16 +140,14 @@ class HomeProduct {
   }
 
   Map<String, dynamic> toMap({bool includeCreatedAt = false}) {
-    final url = imageUrl.trim();
+    final path = imagePath.trim();
     return {
         'id': id,
         'name': name,
         'price': price,
         'stock': stock,
-        if (url.isNotEmpty) ...{
-          'image': url,
-          'imageUrl': url,
-        },
+        if (path.isNotEmpty) 'imagePath': path,
+        if (imageUrl.trim().isNotEmpty) 'imageUrl': imageUrl.trim(),
         if (categoryId != null && categoryId!.isNotEmpty)
           'categoryId': categoryId,
         if (category != null && category!.isNotEmpty) 'categoryName': category,

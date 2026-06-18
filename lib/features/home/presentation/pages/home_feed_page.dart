@@ -165,24 +165,20 @@ class _HomeTabPageState extends ConsumerState<HomeTabPage> {
     required Object? firebaseError,
   }) {
 
-    return Stack(
-      fit: StackFit.expand,
-      clipBehavior: Clip.none,
-      children: [
-        Positioned.fill(
-          child: ColoredBox(
-            color: bg,
-            child: RefreshIndicator(
-                    color: _HomeTokens.orange,
-                    onRefresh: () async {
-                      ref.invalidate(activeCategoriesProvider);
-                      ref.invalidate(categoryFoodsProvider(categoryId));
-                    },
-                    child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(
-              parent: BouncingScrollPhysics(),
-            ),
-            slivers: [
+    return ColoredBox(
+      color: bg,
+      child: RefreshIndicator(
+        color: _HomeTokens.orange,
+        onRefresh: () async {
+          ref.invalidate(activeBannersProvider);
+          ref.invalidate(activeCategoriesProvider);
+          ref.invalidate(categoryFoodsProvider(categoryId));
+        },
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics(),
+          ),
+          slivers: [
               if (firebaseError != null)
                 SliverToBoxAdapter(
                   child: Padding(
@@ -351,40 +347,8 @@ class _HomeTabPageState extends ConsumerState<HomeTabPage> {
                 ),
               ),
             ],
-            ),
           ),
         ),
-        ),
-        Positioned(
-          right: 18,
-          bottom: 102,
-                  child: Material(
-                    elevation: 8,
-                    shadowColor: Colors.black38,
-                    shape: const CircleBorder(),
-                    color: const Color(0xFF6D4C41),
-                    child: InkWell(
-                      customBorder: const CircleBorder(),
-                      onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            behavior: SnackBarBehavior.floating,
-                            content: Text(l10n.homeSupportSoon),
-                          ),
-                        );
-                      },
-                      child: const Padding(
-                        padding: EdgeInsets.all(14),
-                        child: Icon(
-                          Icons.chat_bubble_outline_rounded,
-                          color: Colors.white,
-                          size: 22,
-                        ),
-                      ),
-                    ),
-          ),
-        ),
-      ],
     );
   }
 }

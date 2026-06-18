@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/legal_urls.dart';
 import '../../../../core/l10n/app_l10n.dart';
@@ -12,11 +13,12 @@ import '../../../feedback/presentation/pages/admin_feedbacks_page.dart';
 import '../../../menu/presentation/pages/admin_banners_page.dart';
 import '../../../menu/presentation/pages/admin_categories_page.dart';
 import '../../../menu/presentation/pages/admin_foods_page.dart';
+import '../../../orders/application/order_providers.dart';
 import '../../../orders/presentation/pages/admin_orders_page.dart';
 import '../../../feedback/presentation/pages/submit_feedback_page.dart';
 import 'change_password_page.dart';
 
-class AccountSettingsPage extends StatefulWidget {
+class AccountSettingsPage extends ConsumerStatefulWidget {
   const AccountSettingsPage({
     super.key,
     required this.authRepository,
@@ -29,10 +31,10 @@ class AccountSettingsPage extends StatefulWidget {
   final ValueChanged<ThemeMode> onThemeChanged;
 
   @override
-  State<AccountSettingsPage> createState() => _AccountSettingsPageState();
+  ConsumerState<AccountSettingsPage> createState() => _AccountSettingsPageState();
 }
 
-class _AccountSettingsPageState extends State<AccountSettingsPage> {
+class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
@@ -371,13 +373,20 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                         onTap: _openAdminBanners,
                       ),
                       const SizedBox(height: 10),
-                      _ActionTile(
-                        icon: Icons.receipt_long_rounded,
-                        title: l10n.adminOrdersTitle,
-                        subtitle: l10n.adminOrdersSubtitle,
-                        isDark: isDark,
-                        card: card,
-                        onTap: _openAdminOrders,
+                      Consumer(
+                        builder: (context, ref, _) {
+                          final pending = ref.watch(adminPendingOrdersCountProvider);
+                          final count = pending.valueOrNull ?? 0;
+                          return _ActionTile(
+                            icon: Icons.receipt_long_rounded,
+                            title: l10n.adminOrdersTitle,
+                            subtitle: l10n.adminOrdersSubtitle,
+                            isDark: isDark,
+                            card: card,
+                            badgeCount: count > 0 ? count : null,
+                            onTap: _openAdminOrders,
+                          );
+                        },
                       ),
                       const SizedBox(height: 10),
                       _ActionTile(
@@ -491,6 +500,7 @@ class _ActionTile extends StatelessWidget {
     required this.isDark,
     required this.card,
     required this.onTap,
+    this.badgeCount,
   });
 
   final IconData icon;
@@ -499,6 +509,7 @@ class _ActionTile extends StatelessWidget {
   final bool isDark;
   final Color card;
   final VoidCallback onTap;
+  final int? badgeCount;
 
   @override
   Widget build(BuildContext context) {
@@ -544,6 +555,24 @@ class _ActionTile extends StatelessWidget {
                   ],
                 ),
               ),
+              if (badgeCount != null && badgeCount! > 0) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEF5350),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    badgeCount! > 99 ? '99+' : '$badgeCount',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+              ],
               const Icon(Icons.chevron_right_rounded),
             ],
           ),

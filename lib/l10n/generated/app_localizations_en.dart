@@ -459,6 +459,17 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get cartOrderSuccessTitle => 'Order placed!';
+
+  @override
+  String cartOrderSuccessMessage(String orderNo, String total) {
+    return 'Order number: $orderNo\nTotal: $total';
+  }
+
+  @override
+  String get cartOrderSuccessOk => 'OK';
+
+  @override
   String get cartOrderFailed => 'Order failed. Check internet or your account.';
 
   @override
@@ -485,6 +496,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profilePhotoGalleryHint => 'Pick from your device';
 
   @override
+  String get profilePhotoFiles => 'Files';
+
+  @override
+  String get profilePhotoFilesHint => 'Choose a file from your device';
+
+  @override
   String get profilePhotoPermissionDenied =>
       'Permission denied. Enable it in Settings.';
 
@@ -498,7 +515,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profilePhotoUploading => 'Uploading photo…';
 
   @override
-  String get profilePhotoUploadFailed => 'Could not upload photo. Try again.';
+  String get profilePhotoUploadFailed => 'Could not upload photo';
+
+  @override
+  String get profilePhotoRemove => 'Remove photo';
 
   @override
   String get profilePhotoUploadSuccess => 'Photo uploaded successfully';
@@ -826,6 +846,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get adminBannerEdit => 'Edit banner';
 
   @override
+  String get adminBannerChangeImage => 'Change image';
+
+  @override
   String get adminBannerTitle => 'Title';
 
   @override
@@ -934,6 +957,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get orderStatusPending => 'Pending';
 
   @override
+  String get orderStatusAccepted => 'Accepted';
+
+  @override
   String get orderStatusPreparing => 'Preparing';
 
   @override
@@ -949,7 +975,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get orderHistoryTitle => 'Order history';
 
   @override
-  String get orderHistoryEmpty => 'No orders yet';
+  String get orderHistoryEmpty => 'You have no orders yet';
 
   @override
   String get orderHistoryEmptyHint =>
@@ -983,6 +1009,48 @@ class AppLocalizationsEn extends AppLocalizations {
   String orderHistoryLine(int count, int amount, String currency) {
     return '$count items · $amount $currency';
   }
+
+  @override
+  String get orderHistoryPlaceOrder => 'Place order';
+
+  @override
+  String get orderHistorySearchHint => 'Order number (#CM...)';
+
+  @override
+  String get orderFilterAll => 'All';
+
+  @override
+  String get orderFilterToday => 'Today';
+
+  @override
+  String get orderFilterWeek => '7 days';
+
+  @override
+  String get orderFilterMonth => '30 days';
+
+  @override
+  String get orderHistoryOffline => 'Offline — showing saved orders';
+
+  @override
+  String get orderDetailPayment => 'Payment method';
+
+  @override
+  String get orderPaymentCash => 'Cash';
+
+  @override
+  String get orderPaymentCard => 'Card';
+
+  @override
+  String get orderPaymentOnline => 'Online';
+
+  @override
+  String get orderHistoryRetry => 'Retry';
+
+  @override
+  String get orderHistoryLoadFailed => 'Could not load data. Please try again.';
+
+  @override
+  String get orderHistoryLoadMore => 'Load more';
 
   @override
   String get promoSlide1Badge => 'LIMITED OFFER';

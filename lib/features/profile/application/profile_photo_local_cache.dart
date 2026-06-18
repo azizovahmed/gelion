@@ -31,4 +31,17 @@ abstract final class ProfilePhotoLocalCache {
       return null;
     }
   }
+
+  static Future<void> clear(String uid) async {
+    if (uid.isEmpty) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final path = prefs.getString(_key(uid));
+      if (path != null && path.isNotEmpty) {
+        final file = File(path);
+        if (file.existsSync()) await file.delete();
+      }
+      await prefs.remove(_key(uid));
+    } catch (_) {}
+  }
 }

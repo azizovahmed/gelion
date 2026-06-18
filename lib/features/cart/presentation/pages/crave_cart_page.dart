@@ -2,15 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../../../core/l10n/app_l10n.dart';
-import '../../../../l10n/generated/app_localizations.dart';
 import '../../../auth/domain/entities/app_user.dart';
 import '../../domain/entities/cart_line.dart';
 import '../theme/cart_palette.dart';
-import '../utils/format_sum.dart';
 import '../widgets/cart_address_section.dart';
 import '../widgets/cart_checkout_button.dart';
+import '../widgets/cart_order_success_dialog.dart';
 import '../widgets/cart_price_summary.dart';
-import '../widgets/cart_promo_section.dart';
 import '../widgets/cart_wave_header.dart';
 import '../widgets/crave_cart_app_bar.dart';
 import '../widgets/crave_cart_item_card.dart';
@@ -49,81 +47,24 @@ class CraveCartPage extends StatefulWidget {
   State<CraveCartPage> createState() => _CraveCartPageState();
 }
 
-enum _PromoFb { none, empty, invalid, pct10, fix5000, pct15 }
-
 class _CraveCartPageState extends State<CraveCartPage> {
-  final TextEditingController _promoCtrl = TextEditingController();
   final TextEditingController _addressCtrl = TextEditingController();
-  int _discountSoM = 0;
-  _PromoFb _promoFb = _PromoFb.none;
   String? _addressError;
 
   static const int _deliveryFee = 15_000;
 
   @override
   void dispose() {
-    _promoCtrl.dispose();
     _addressCtrl.dispose();
     super.dispose();
-  }
-
-  @override
-  void didUpdateWidget(covariant CraveCartPage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    final code = _promoCtrl.text.trim().toUpperCase().replaceAll(RegExp(r'\s+'), '');
-    if (code == 'DELISH10' || code == 'CRAVE10') {
-      final next = (_subtotal * 0.10).round();
-      if (next != _discountSoM) setState(() => _discountSoM = next);
-    } else if (code == 'CRAVE15') {
-      final next = (_subtotal * 0.15).round();
-      if (next != _discountSoM) setState(() => _discountSoM = next);
-    }
   }
 
   int get _subtotal =>
       widget.lines.fold<int>(0, (sum, e) => sum + e.product.price * e.quantity);
 
-  int get _discount => _discountSoM.clamp(0, _subtotal);
-
   int get _delivery => widget.lines.isEmpty ? 0 : _deliveryFee;
 
-  int get _total => (_subtotal + _delivery - _discount).clamp(0, 1 << 30);
-
-  void _applyPromo() {
-    final raw = _promoCtrl.text.trim();
-    final code = raw.toUpperCase().replaceAll(RegExp(r'\s+'), '');
-    setState(() {
-      if (code.isEmpty) {
-        _promoFb = _PromoFb.empty;
-        _discountSoM = 0;
-        return;
-      }
-      _discountSoM = 0;
-      if (code == 'DELISH10' || code == 'CRAVE10') {
-        _discountSoM = (_subtotal * 0.10).round();
-        _promoFb = _PromoFb.pct10;
-      } else if (code == 'MELT5000') {
-        _discountSoM = 5000;
-        _promoFb = _PromoFb.fix5000;
-      } else if (code == 'CRAVE15') {
-        _discountSoM = (_subtotal * 0.15).round();
-        _promoFb = _PromoFb.pct15;
-      } else {
-        _promoFb = _PromoFb.invalid;
-      }
-    });
-  }
-
-  String? _promoMessage(AppLocalizations l10n) {
-    return switch (_promoFb) {
-      _PromoFb.none => null,
-      _PromoFb.empty => l10n.cartPromoEnter,
-      _PromoFb.invalid => l10n.cartPromoNotFound,
-      _PromoFb.pct10 => l10n.cartPromo10,
-      _PromoFb.fix5000 => l10n.cartPromo5000,
-      _PromoFb.pct15 => l10n.cartPromo15,
-    };
-  }
+  int get _total => (_subtotal + _delivery).clamp(0, 1 << 30);
 
   Future<void> _checkout() async {
     if (widget.lines.isEmpty) return;
@@ -144,22 +85,18 @@ class _CraveCartPageState extends State<CraveCartPage> {
       lines: widget.lines,
       subtotal: _subtotal,
       delivery: _delivery,
-      discount: _discount,
+      discount: 0,
       total: _total,
       address: address,
     );
     if (!mounted) return;
     if (orderNo != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          content: Text(
-            l10n.cartOrderAccepted(orderNo, '${formatSum(_total)} ${l10n.currencySom}'),
-            style: const TextStyle(fontWeight: FontWeight.w600),
-          ),
-        ),
+      await showCartOrderSuccessDialog(
+        context: context,
+        orderNo: orderNo,
+        total: _total,
       );
+      if (!mounted) return;
       if (widget.onGoShopping != null) {
         widget.onGoShopping!();
       }
@@ -177,7 +114,6 @@ class _CraveCartPageState extends State<CraveCartPage> {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final bottomInset = MediaQuery.paddingOf(context).bottom;
-    final promoText = _promoMessage(l10n);
 
     return ColoredBox(
       color: CartPalette.pageBg(context),
@@ -200,14 +136,10 @@ class _CraveCartPageState extends State<CraveCartPage> {
                   : _FilledCart(
                       key: const ValueKey('filled'),
                       lines: widget.lines,
-                      promoCtrl: _promoCtrl,
                       addressCtrl: _addressCtrl,
                       addressError: _addressError,
-                      onApplyPromo: _applyPromo,
-                      promoFeedback: promoText,
                       subtotal: _subtotal,
                       delivery: _delivery,
-                      discount: _discount,
                       total: _total,
                       onIncrement: widget.onIncrement,
                       onDecrement: widget.onDecrement,
@@ -228,14 +160,10 @@ class _FilledCart extends StatelessWidget {
   const _FilledCart({
     super.key,
     required this.lines,
-    required this.promoCtrl,
     required this.addressCtrl,
     required this.addressError,
-    required this.onApplyPromo,
-    required this.promoFeedback,
     required this.subtotal,
     required this.delivery,
-    required this.discount,
     required this.total,
     required this.onIncrement,
     required this.onDecrement,
@@ -246,14 +174,10 @@ class _FilledCart extends StatelessWidget {
   });
 
   final List<CartLine> lines;
-  final TextEditingController promoCtrl;
   final TextEditingController addressCtrl;
   final String? addressError;
-  final VoidCallback onApplyPromo;
-  final String? promoFeedback;
   final int subtotal;
   final int delivery;
-  final int discount;
   final int total;
   final void Function(int index) onIncrement;
   final void Function(int index) onDecrement;
@@ -293,16 +217,10 @@ class _FilledCart extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                CartPromoSection(
-                  controller: promoCtrl,
-                  onApply: onApplyPromo,
-                  appliedMessage: promoFeedback,
-                ),
-                const SizedBox(height: 18),
                 CartPriceSummary(
                   subtotal: subtotal,
                   delivery: delivery,
-                  discount: discount,
+                  discount: 0,
                   total: total,
                 ).animate().fadeIn(duration: 280.ms).slideY(begin: 0.04, curve: Curves.easeOutCubic),
                 const SizedBox(height: 18),

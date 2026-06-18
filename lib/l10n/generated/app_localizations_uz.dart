@@ -462,6 +462,17 @@ class AppLocalizationsUz extends AppLocalizations {
   }
 
   @override
+  String get cartOrderSuccessTitle => 'Buyurtma qabul qilindi!';
+
+  @override
+  String cartOrderSuccessMessage(String orderNo, String total) {
+    return 'Buyurtma raqami: $orderNo\nJami: $total';
+  }
+
+  @override
+  String get cartOrderSuccessOk => 'Yaxshi';
+
+  @override
   String get cartOrderFailed =>
       'Buyurtma yuborilmadi. Internet yoki akkauntni tekshiring.';
 
@@ -489,6 +500,12 @@ class AppLocalizationsUz extends AppLocalizations {
   String get profilePhotoGalleryHint => 'Telefoningizdan tanlang';
 
   @override
+  String get profilePhotoFiles => 'Fayllar';
+
+  @override
+  String get profilePhotoFilesHint => 'Qurilmadan fayl tanlang';
+
+  @override
   String get profilePhotoPermissionDenied =>
       'Ruxsat berilmadi. Sozlamalardan yoqing.';
 
@@ -502,8 +519,10 @@ class AppLocalizationsUz extends AppLocalizations {
   String get profilePhotoUploading => 'Rasm yuklanmoqda…';
 
   @override
-  String get profilePhotoUploadFailed =>
-      'Rasm yuklanmadi. Qayta urinib ko‘ring.';
+  String get profilePhotoUploadFailed => 'Rasm yuklanmadi';
+
+  @override
+  String get profilePhotoRemove => 'Rasmni o‘chirish';
 
   @override
   String get profilePhotoUploadSuccess => 'Rasm muvaffaqiyatli yuklandi';
@@ -835,6 +854,9 @@ class AppLocalizationsUz extends AppLocalizations {
   String get adminBannerEdit => 'Bannerni tahrirlash';
 
   @override
+  String get adminBannerChangeImage => 'Rasmni o‘zgartirish';
+
+  @override
   String get adminBannerTitle => 'Sarlavha';
 
   @override
@@ -944,13 +966,16 @@ class AppLocalizationsUz extends AppLocalizations {
   String get orderStatusPending => 'Kutilmoqda';
 
   @override
+  String get orderStatusAccepted => 'Qabul qilindi';
+
+  @override
   String get orderStatusPreparing => 'Tayyorlanmoqda';
 
   @override
   String get orderStatusDelivering => 'Yetkazilmoqda';
 
   @override
-  String get orderStatusCompleted => 'Yakunlandi';
+  String get orderStatusCompleted => 'Yetkazildi';
 
   @override
   String get orderStatusCancelled => 'Bekor qilindi';
@@ -994,6 +1019,50 @@ class AppLocalizationsUz extends AppLocalizations {
   String orderHistoryLine(int count, int amount, String currency) {
     return '$count ta mahsulot • $amount $currency';
   }
+
+  @override
+  String get orderHistoryPlaceOrder => 'Buyurtma berish';
+
+  @override
+  String get orderHistorySearchHint => 'Buyurtma raqami (#CM...)';
+
+  @override
+  String get orderFilterAll => 'Barchasi';
+
+  @override
+  String get orderFilterToday => 'Bugun';
+
+  @override
+  String get orderFilterWeek => '7 kun';
+
+  @override
+  String get orderFilterMonth => '30 kun';
+
+  @override
+  String get orderHistoryOffline =>
+      'Oflayn — saqlangan buyurtmalar ko‘rsatilmoqda';
+
+  @override
+  String get orderDetailPayment => 'To‘lov turi';
+
+  @override
+  String get orderPaymentCash => 'Naqd';
+
+  @override
+  String get orderPaymentCard => 'Karta';
+
+  @override
+  String get orderPaymentOnline => 'Onlayn';
+
+  @override
+  String get orderHistoryRetry => 'Qayta urinish';
+
+  @override
+  String get orderHistoryLoadFailed =>
+      'Ma\'lumot yuklanmadi. Qayta urinib ko‘ring.';
+
+  @override
+  String get orderHistoryLoadMore => 'Ko‘proq yuklash';
 
   @override
   String get promoSlide1Badge => 'CHEKLANGAN TAKLIF';

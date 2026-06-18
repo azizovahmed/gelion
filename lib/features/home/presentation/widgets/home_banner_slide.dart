@@ -1,7 +1,7 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../menu/domain/entities/promo_banner.dart';
+import '../../../menu/presentation/widgets/banner_cover_image.dart';
 
 class HomeBannerSlide extends StatelessWidget {
   const HomeBannerSlide({
@@ -26,7 +26,7 @@ class HomeBannerSlide extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            _BannerImage(url: banner.imageUrl),
+            BannerCoverImage(banner: banner, fit: BoxFit.cover),
             DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -116,54 +116,3 @@ class HomeBannerSlide extends StatelessWidget {
   }
 }
 
-class _BannerImage extends StatelessWidget {
-  const _BannerImage({required this.url});
-
-  final String url;
-
-  @override
-  Widget build(BuildContext context) {
-    if (url.isEmpty) {
-      return const DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFFFF9100), Color(0xFFFF6D00)],
-          ),
-        ),
-        child: Center(
-          child: Icon(Icons.image_outlined, size: 48, color: Colors.white70),
-        ),
-      );
-    }
-
-    return CachedNetworkImage(
-      imageUrl: url,
-      fit: BoxFit.cover,
-      width: double.infinity,
-      height: double.infinity,
-      placeholder: (_, _) => const ColoredBox(
-        color: Color(0xFFFFF3E0),
-        child: Center(
-          child: SizedBox(
-            width: 28,
-            height: 28,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: Color(0xFFFF8C00),
-            ),
-          ),
-        ),
-      ),
-      errorWidget: (_, _, _) => const DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFFFF9100), Color(0xFFFF6D00)],
-          ),
-        ),
-        child: Center(
-          child: Icon(Icons.broken_image_outlined, size: 48, color: Colors.white70),
-        ),
-      ),
-    );
-  }
-}

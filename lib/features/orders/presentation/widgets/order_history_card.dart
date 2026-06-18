@@ -25,11 +25,11 @@ class OrderHistoryCard extends StatelessWidget {
 
     return Material(
       color: OrderPresentationTheme.white,
-      borderRadius: BorderRadius.circular(22),
+      borderRadius: BorderRadius.circular(18),
       elevation: 2,
       shadowColor: OrderPresentationTheme.brown.withValues(alpha: 0.08),
       child: InkWell(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(18),
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),

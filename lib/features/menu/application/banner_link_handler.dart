@@ -2,11 +2,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/l10n/app_l10n.dart';
-import '../../home/presentation/pages/home_feed_page.dart' show OnAddToCart;
 import '../domain/entities/banner_link_target.dart';
 import '../domain/entities/menu_category.dart';
 import '../domain/entities/promo_banner.dart';
-import '../domain/home_product.dart';
+import '../domain/home_product.dart' show HomeProduct, OnAddToCart;
 import '../presentation/pages/category_products_page.dart';
 import '../presentation/pages/product_detail_page.dart';
 

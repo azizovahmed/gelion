@@ -4,7 +4,12 @@ import '../../../../core/l10n/app_l10n.dart';
 import '../theme/order_presentation_theme.dart';
 
 class OrderHistoryEmptyState extends StatelessWidget {
-  const OrderHistoryEmptyState({super.key});
+  const OrderHistoryEmptyState({
+    super.key,
+    this.onPlaceOrder,
+  });
+
+  final VoidCallback? onPlaceOrder;
 
   @override
   Widget build(BuildContext context) {
@@ -58,6 +63,25 @@ class OrderHistoryEmptyState extends StatelessWidget {
                 color: OrderPresentationTheme.brown.withValues(alpha: 0.85),
               ),
             ),
+            if (onPlaceOrder != null) ...[
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: onPlaceOrder,
+                style: FilledButton.styleFrom(
+                  backgroundColor: OrderPresentationTheme.orange,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                ),
+                icon: const Icon(Icons.shopping_bag_rounded),
+                label: Text(
+                  l10n.orderHistoryPlaceOrder,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+            ],
           ],
         ),
       ),

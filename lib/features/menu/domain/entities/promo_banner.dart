@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
+import '../banner_image_parser.dart';
+
 /// Admin `banners` kolleksiyasi — bosh sahifa karuseli.
 @immutable
 class PromoBanner {
@@ -8,7 +10,8 @@ class PromoBanner {
     required this.id,
     required this.title,
     required this.subtitle,
-    required this.imageUrl,
+    this.imageUrl = '',
+    this.imagePath = '',
     required this.buttonText,
     required this.link,
     required this.discount,
@@ -21,6 +24,7 @@ class PromoBanner {
   final String title;
   final String subtitle;
   final String imageUrl;
+  final String imagePath;
   final String buttonText;
   final String link;
   final String discount;
@@ -30,13 +34,16 @@ class PromoBanner {
 
   factory PromoBanner.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? {};
+    final id = (data['id'] as String?)?.trim().isNotEmpty == true
+        ? (data['id'] as String).trim()
+        : doc.id;
+    final image = parseBannerImageFields(data, documentId: id);
     return PromoBanner(
-      id: (data['id'] as String?)?.trim().isNotEmpty == true
-          ? (data['id'] as String).trim()
-          : doc.id,
+      id: id,
       title: (data['title'] as String?)?.trim() ?? '',
       subtitle: (data['subtitle'] as String?)?.trim() ?? '',
-      imageUrl: ((data['image'] ?? data['imageUrl']) as String?)?.trim() ?? '',
+      imagePath: image.storagePath,
+      imageUrl: image.networkUrl,
       buttonText: ((data['buttonText'] ?? data['actionText']) as String?)
               ?.trim() ??
           '',
@@ -54,13 +61,37 @@ class PromoBanner {
         'id': id,
         'title': title,
         'subtitle': subtitle,
-        'image': imageUrl,
+        if (imagePath.isNotEmpty) 'imagePath': imagePath,
+        if (imageUrl.trim().isNotEmpty) 'imageUrl': imageUrl.trim(),
         'buttonText': buttonText,
         'link': link,
         'isActive': isActive,
         'order': order,
         if (createdAt != null) 'createdAt': Timestamp.fromDate(createdAt!),
       };
+
+  PromoBanner copyWith({
+    String? imageUrl,
+    String? imagePath,
+  }) =>
+      PromoBanner(
+        id: id,
+        title: title,
+        subtitle: subtitle,
+        imageUrl: imageUrl ?? this.imageUrl,
+        imagePath: imagePath ?? this.imagePath,
+        buttonText: buttonText,
+        link: link,
+        discount: discount,
+        isActive: isActive,
+        order: order,
+        createdAt: createdAt,
+      );
+
+  bool get hasImage => imagePath.isNotEmpty || hasNetworkImage;
+
+  bool get hasNetworkImage =>
+      imageUrl.trim().startsWith('http://') || imageUrl.trim().startsWith('https://');
 }
 
 bool _readBool(dynamic value, bool fallback) {

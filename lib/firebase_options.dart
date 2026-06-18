@@ -23,41 +23,40 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyB1wRGE-zbmoUQjQNfla9XI98hJbc0mYxo',
-    appId: '1:695847730782:web:732dc0cf461fda0289becf',
-    messagingSenderId: '695847730782',
-    projectId: 'gelion-d57cd',
-    authDomain: 'gelion-d57cd.firebaseapp.com',
-    databaseURL: 'https://gelion-d57cd-default-rtdb.firebaseio.com',
-    storageBucket: 'gelion-d57cd.firebasestorage.app',
-    measurementId: 'G-RMF7Q9Z3WL',
+      apiKey: "AIzaSyDQjmrYr_puH6ck259J-YVr8_nA_u2t1ys",
+       authDomain: "gelion-99b07.firebaseapp.com",
+   projectId: "gelion-99b07",
+   storageBucket: "gelion-99b07.firebasestorage.app",
+       messagingSenderId: "385827232786",
+       appId: "1:385827232786:web:5159d77404f6848dbccccb",
+   measurementId: "G-GEBJLJCRK4"
   );
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyCs_a_7Tr_xWlxcm4TPdYtO6p3ur9GlsXY',
     appId: '1:695847730782:android:c743955459a1dfa789becf',
-    messagingSenderId: '695847730782',
-    projectId: 'gelion-d57cd',
-    storageBucket: 'gelion-d57cd.firebasestorage.app',
+    messagingSenderId: '385827232786',
+    projectId: 'gelion-99b07',
+    storageBucket: 'gelion-99b07.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: String.fromEnvironment('FIREBASE_IOS_API_KEY', defaultValue: ''),
-    appId: String.fromEnvironment('FIREBASE_IOS_APP_ID', defaultValue: ''),
-    messagingSenderId: '695847730782',
-    projectId: 'gelion-d57cd',
-    storageBucket: 'gelion-d57cd.firebasestorage.app',
+    apiKey: 'AIzaSyDQjmrYr_puH6ck259J-YVr8_nA_u2t1ys',
+    appId: String.fromEnvironment('FIREBASE_IOS_APP_ID', defaultValue: '1:385827232786:web:5159d77404f6848dbccccb'),
+    messagingSenderId: '385827232786',
+    projectId: 'gelion-99b07',
+    storageBucket: 'gelion-99b07.firebasestorage.app',
     iosBundleId: 'com.gelion.app',
   );
 
   static const FirebaseOptions macos = ios;
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: String.fromEnvironment('FIREBASE_WINDOWS_API_KEY', defaultValue: ''),
-    appId: String.fromEnvironment('FIREBASE_WINDOWS_APP_ID', defaultValue: ''),
-    messagingSenderId: '695847730782',
-    projectId: 'gelion-d57cd',
-    storageBucket: 'gelion-d57cd.firebasestorage.app',
+    apiKey: 'AIzaSyDQjmrYr_puH6ck259J-YVr8_nA_u2t1ys',
+    appId: '1:385827232786:web:5159d77404f6848dbccccb',
+    messagingSenderId: '385827232786',
+    projectId: 'gelion-99b07',
+    storageBucket: 'gelion-99b07.firebasestorage.app',
   );
 
   static const FirebaseOptions linux = windows;

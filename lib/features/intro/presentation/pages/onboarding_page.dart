@@ -6,7 +6,7 @@ import '../../../../core/l10n/app_l10n.dart';
 import '../../../../core/locale/locale_controller.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../auth/domain/repositories/auth_repository.dart';
-import '../../../auth/presentation/pages/register_page.dart';
+import '../../../auth/presentation/pages/login_page.dart';
 
 class OnboardingPage extends StatefulWidget {
   const OnboardingPage({
@@ -54,7 +54,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
       FadeRoute(
-        child: RegisterPage(
+        child: LoginPage(
           authRepository: widget.authRepository,
           onThemeChanged: widget.onThemeChanged,
           localeController: widget.localeController,

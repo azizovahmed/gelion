@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import '../../../orders/data/order_local_cache.dart';
+import '../../../profile/application/profile_photo_local_cache.dart';
 import '../../domain/entities/app_user.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../models/app_user_model.dart';
@@ -66,7 +68,29 @@ class FirebaseAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<void> signOut() => _firebaseAuth.signOut();
+  Future<void> signOut() async {
+    final uid = _firebaseAuth.currentUser?.uid;
+    if (uid != null) {
+      await ProfilePhotoLocalCache.clear(uid);
+    }
+    await OrderLocalCache.clearAll();
+    await _firebaseAuth.signOut();
+  }
+
+  Reference _profileImageRef(String uid) =>
+      _storage.ref().child('users').child(uid).child('profile.jpg');
+
+  Future<void> _deleteLegacyProfileStorage(String uid) async {
+    for (final ref in [
+      _storage.ref().child('user_profiles').child(uid).child('avatar.jpg'),
+      _storage.ref().child('user_profiles').child(uid),
+      _storage.ref().child('users').child(uid).child('profile').child('profile.jpg'),
+    ]) {
+      try {
+        await ref.delete();
+      } catch (_) {}
+    }
+  }
 
   @override
   Future<AppUser?> currentUserProfile() async {
@@ -82,9 +106,9 @@ class FirebaseAuthRepository implements AuthRepository {
       final data = doc.data();
       if (data != null) {
         final merged = Map<String, dynamic>.from(data);
-        final p = merged['photoUrl'] as String?;
-        if ((p == null || p.isEmpty) && user.photoURL != null && user.photoURL!.isNotEmpty) {
-          merged['photoUrl'] = user.photoURL;
+        final p = AppUserModel.profileImageUrlFromMap(merged);
+        if (p == null && user.photoURL != null && user.photoURL!.isNotEmpty) {
+          merged['profileImage'] = user.photoURL;
         }
         return AppUserModel.fromMap(merged);
       }
@@ -165,23 +189,43 @@ class FirebaseAuthRepository implements AuthRepository {
   Future<String> updateProfilePhotoBytes(List<int> bytes, {String contentType = 'image/jpeg'}) async {
     final user = _firebaseAuth.currentUser;
     if (user == null) {
-      throw FirebaseAuthException(code: 'user-not-found', message: null);
+      throw FirebaseAuthException(code: 'user-not-found', message: 'Foydalanuvchi tizimga kirmagan');
     }
     if (bytes.isEmpty) {
-      throw FirebaseAuthException(code: 'invalid-argument', message: null);
+      throw FirebaseAuthException(code: 'invalid-argument', message: 'Rasm maʼlumotlari bo‘sh');
     }
     final data = bytes is Uint8List ? bytes : Uint8List.fromList(bytes);
-    final ref = _storage.ref().child('user_profiles').child(user.uid).child('avatar.jpg');
+    final ref = _profileImageRef(user.uid);
+    
+    // Eski fayllarni tozalash (ixtiyoriy, putData odatda ustiga yozadi)
     try {
       await ref.delete();
     } catch (_) {}
-    await ref.putData(data, SettableMetadata(contentType: contentType));
-    final url = await ref.getDownloadURL();
+    await _deleteLegacyProfileStorage(user.uid);
+
+    // 1. Storage'ga yuklash
+    final uploadTask = await ref.putData(data, SettableMetadata(contentType: contentType));
+    
+    // 2. Download URL olish
+    final url = await uploadTask.ref.getDownloadURL();
+
+    // 3. Firestore'ga saqlash (photoUrl maydoniga)
     await _firestore.collection('users').doc(user.uid).set(
-      {'uid': user.uid, 'photoUrl': url},
+      {
+        'uid': user.uid,
+        'photoUrl': url,
+        'profileImage': FieldValue.delete(), // Eski maydonni tozalash
+        'updatedAt': DateTime.now().toIso8601String(),
+      },
       SetOptions(merge: true),
     );
+
+    // 4. Lokal keshga saqlash
+    await ProfilePhotoLocalCache.saveBytes(user.uid, data);
+
+    // 5. Firebase Auth Profilini yangilash
     await user.updatePhotoURL(url);
+
     return url;
   }
 
@@ -196,7 +240,11 @@ class FirebaseAuthRepository implements AuthRepository {
       throw FirebaseAuthException(code: 'invalid-argument', message: null);
     }
     await _firestore.collection('users').doc(user.uid).set(
-      {'uid': user.uid, 'photoUrl': url},
+      {
+        'uid': user.uid,
+        'photoUrl': url,
+        'profileImage': FieldValue.delete(),
+      },
       SetOptions(merge: true),
     );
     await user.updatePhotoURL(url);
@@ -210,13 +258,15 @@ class FirebaseAuthRepository implements AuthRepository {
       throw FirebaseAuthException(code: 'user-not-found', message: null);
     }
     try {
-      await _storage.ref().child('user_profiles').child(user.uid).child('avatar.jpg').delete();
+      await _profileImageRef(user.uid).delete();
     } catch (_) {}
-    try {
-      await _storage.ref().child('user_profiles').child(user.uid).delete();
-    } catch (_) {}
+    await _deleteLegacyProfileStorage(user.uid);
+    await ProfilePhotoLocalCache.clear(user.uid);
     await _firestore.collection('users').doc(user.uid).set(
-      {'photoUrl': FieldValue.delete()},
+      {
+        'photoUrl': FieldValue.delete(),
+        'profileImage': FieldValue.delete(),
+      },
       SetOptions(merge: true),
     );
     await user.updatePhotoURL(null);

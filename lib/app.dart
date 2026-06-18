@@ -9,7 +9,7 @@ import 'core/services/firebase_bootstrap.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/data/repositories/firebase_auth_repository.dart';
 import 'features/auth/domain/repositories/auth_repository.dart';
-import 'features/auth/presentation/pages/register_page.dart';
+import 'features/auth/presentation/pages/login_page.dart';
 import 'features/home/presentation/pages/home_screen.dart';
 import 'features/intro/presentation/pages/onboarding_page.dart';
 import 'features/intro/presentation/pages/splash_page.dart';
@@ -202,7 +202,7 @@ class _BootstrapGateState extends State<BootstrapGate> {
                 onThemeChanged: widget.onThemeChanged,
                 localeController: widget.localeController,
               )
-            : RegisterPage(
+            : LoginPage(
                 authRepository: widget.authRepository,
                 onThemeChanged: widget.onThemeChanged,
                 localeController: widget.localeController,

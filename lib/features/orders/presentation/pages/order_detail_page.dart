@@ -1,16 +1,44 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/l10n/app_l10n.dart';
+import '../../../../core/widgets/safe_network_image.dart';
 import '../../../cart/presentation/utils/format_sum.dart';
+import '../../application/order_providers.dart';
 import '../../domain/entities/app_order.dart';
-import '../../domain/entities/order_status.dart';
+import '../../domain/entities/payment_method_labels.dart';
 import '../theme/order_presentation_theme.dart';
 import '../widgets/order_status_badge.dart';
 import '../widgets/order_status_timeline.dart';
 
-class OrderDetailPage extends StatelessWidget {
+class OrderDetailPage extends ConsumerWidget {
   const OrderDetailPage({super.key, required this.order});
+
+  final AppOrder order;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final uid = ref.watch(currentUserIdProvider);
+    if (uid.isEmpty ||
+        (order.userId.trim().isNotEmpty && order.userId.trim() != uid)) {
+      return Scaffold(
+        appBar: AppBar(),
+        body: Center(child: Text(context.l10n.orderHistoryAuthRequired)),
+      );
+    }
+    final live = ref.watch(userOrderDetailProvider(order.id));
+    final resolved = live.when(
+      data: (o) => o ?? order,
+      loading: () => order,
+      error: (_, __) => order,
+    );
+    return _OrderDetailBody(key: ValueKey(resolved.status), order: resolved);
+  }
+}
+
+class _OrderDetailBody extends StatelessWidget {
+  const _OrderDetailBody({super.key, required this.order});
 
   final AppOrder order;
 
@@ -84,7 +112,14 @@ class OrderDetailPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 14),
-                OrderStatusTimeline(currentStatusCode: order.status),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 320),
+                  switchInCurve: Curves.easeOutCubic,
+                  child: OrderStatusTimeline(
+                    key: ValueKey<String>(order.status),
+                    currentStatusCode: order.status,
+                  ),
+                ),
               ],
             ),
           ),
@@ -111,6 +146,31 @@ class OrderDetailPage extends StatelessWidget {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          _SectionCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.orderDetailPayment,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                    color: OrderPresentationTheme.brownDark,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  paymentMethodLabel(l10n, order.paymentMethod),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: OrderPresentationTheme.brown.withValues(alpha: 0.95),
+                  ),
+                ),
               ],
             ),
           ),
@@ -230,14 +290,12 @@ class _OrderItemRow extends StatelessWidget {
             child: item.imageUrl != null && item.imageUrl!.isNotEmpty
                 ? ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: Image.network(
-                      item.imageUrl!,
+                    child: SafeNetworkImage(
+                      imageUrl: item.imageUrl!,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => const Icon(
-                        Icons.fastfood_rounded,
-                        color: OrderPresentationTheme.orange,
-                        size: 22,
-                      ),
+                      width: 44,
+                      height: 44,
+                      errorLabel: '',
                     ),
                   )
                 : const Icon(Icons.fastfood_rounded, color: OrderPresentationTheme.orange, size: 22),

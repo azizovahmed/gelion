@@ -4,7 +4,12 @@ import '../entities/app_order.dart';
 abstract class OrderRepository {
   Stream<List<AppOrder>> watchAllOrders();
 
-  Stream<List<AppOrder>> watchUserOrders(String userId);
+  Stream<List<AppOrder>> watchUserOrders(
+    String userId, {
+    int limit = 20,
+  });
+
+  Stream<AppOrder?> watchUserOrder(String userId, String orderId);
 
   Future<String?> placeOrder({
     required String userId,
@@ -17,7 +22,12 @@ abstract class OrderRepository {
     required int discount,
     required int totalPrice,
     required String address,
+    String paymentMethod = 'cash',
   });
 
-  Future<void> updateOrderStatus(String orderId, String status);
+  Future<void> updateOrderStatus({
+    required String userId,
+    required String orderId,
+    required String status,
+  });
 }

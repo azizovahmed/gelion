@@ -928,6 +928,24 @@ abstract class AppLocalizations {
   /// **'Order accepted ({orderNo}) — {total}'**
   String cartOrderAccepted(String orderNo, String total);
 
+  /// No description provided for @cartOrderSuccessTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Order placed!'**
+  String get cartOrderSuccessTitle;
+
+  /// No description provided for @cartOrderSuccessMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Order number: {orderNo}\nTotal: {total}'**
+  String cartOrderSuccessMessage(String orderNo, String total);
+
+  /// No description provided for @cartOrderSuccessOk.
+  ///
+  /// In en, this message translates to:
+  /// **'OK'**
+  String get cartOrderSuccessOk;
+
   /// No description provided for @cartOrderFailed.
   ///
   /// In en, this message translates to:
@@ -976,6 +994,18 @@ abstract class AppLocalizations {
   /// **'Pick from your device'**
   String get profilePhotoGalleryHint;
 
+  /// No description provided for @profilePhotoFiles.
+  ///
+  /// In en, this message translates to:
+  /// **'Files'**
+  String get profilePhotoFiles;
+
+  /// No description provided for @profilePhotoFilesHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a file from your device'**
+  String get profilePhotoFilesHint;
+
   /// No description provided for @profilePhotoPermissionDenied.
   ///
   /// In en, this message translates to:
@@ -1003,8 +1033,14 @@ abstract class AppLocalizations {
   /// No description provided for @profilePhotoUploadFailed.
   ///
   /// In en, this message translates to:
-  /// **'Could not upload photo. Try again.'**
+  /// **'Could not upload photo'**
   String get profilePhotoUploadFailed;
+
+  /// No description provided for @profilePhotoRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove photo'**
+  String get profilePhotoRemove;
 
   /// No description provided for @profilePhotoUploadSuccess.
   ///
@@ -1648,6 +1684,12 @@ abstract class AppLocalizations {
   /// **'Edit banner'**
   String get adminBannerEdit;
 
+  /// No description provided for @adminBannerChangeImage.
+  ///
+  /// In en, this message translates to:
+  /// **'Change image'**
+  String get adminBannerChangeImage;
+
   /// No description provided for @adminBannerTitle.
   ///
   /// In en, this message translates to:
@@ -1852,6 +1894,12 @@ abstract class AppLocalizations {
   /// **'Pending'**
   String get orderStatusPending;
 
+  /// No description provided for @orderStatusAccepted.
+  ///
+  /// In en, this message translates to:
+  /// **'Accepted'**
+  String get orderStatusAccepted;
+
   /// No description provided for @orderStatusPreparing.
   ///
   /// In en, this message translates to:
@@ -1885,7 +1933,7 @@ abstract class AppLocalizations {
   /// No description provided for @orderHistoryEmpty.
   ///
   /// In en, this message translates to:
-  /// **'No orders yet'**
+  /// **'You have no orders yet'**
   String get orderHistoryEmpty;
 
   /// No description provided for @orderHistoryEmptyHint.
@@ -1935,6 +1983,90 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count} items · {amount} {currency}'**
   String orderHistoryLine(int count, int amount, String currency);
+
+  /// No description provided for @orderHistoryPlaceOrder.
+  ///
+  /// In en, this message translates to:
+  /// **'Place order'**
+  String get orderHistoryPlaceOrder;
+
+  /// No description provided for @orderHistorySearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Order number (#CM...)'**
+  String get orderHistorySearchHint;
+
+  /// No description provided for @orderFilterAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get orderFilterAll;
+
+  /// No description provided for @orderFilterToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Today'**
+  String get orderFilterToday;
+
+  /// No description provided for @orderFilterWeek.
+  ///
+  /// In en, this message translates to:
+  /// **'7 days'**
+  String get orderFilterWeek;
+
+  /// No description provided for @orderFilterMonth.
+  ///
+  /// In en, this message translates to:
+  /// **'30 days'**
+  String get orderFilterMonth;
+
+  /// No description provided for @orderHistoryOffline.
+  ///
+  /// In en, this message translates to:
+  /// **'Offline — showing saved orders'**
+  String get orderHistoryOffline;
+
+  /// No description provided for @orderDetailPayment.
+  ///
+  /// In en, this message translates to:
+  /// **'Payment method'**
+  String get orderDetailPayment;
+
+  /// No description provided for @orderPaymentCash.
+  ///
+  /// In en, this message translates to:
+  /// **'Cash'**
+  String get orderPaymentCash;
+
+  /// No description provided for @orderPaymentCard.
+  ///
+  /// In en, this message translates to:
+  /// **'Card'**
+  String get orderPaymentCard;
+
+  /// No description provided for @orderPaymentOnline.
+  ///
+  /// In en, this message translates to:
+  /// **'Online'**
+  String get orderPaymentOnline;
+
+  /// No description provided for @orderHistoryRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get orderHistoryRetry;
+
+  /// No description provided for @orderHistoryLoadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load data. Please try again.'**
+  String get orderHistoryLoadFailed;
+
+  /// No description provided for @orderHistoryLoadMore.
+  ///
+  /// In en, this message translates to:
+  /// **'Load more'**
+  String get orderHistoryLoadMore;
 
   /// No description provided for @promoSlide1Badge.
   ///

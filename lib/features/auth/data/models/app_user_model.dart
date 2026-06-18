@@ -10,15 +10,22 @@ class AppUserModel extends AppUser {
     super.photoUrl,
   });
 
-  factory AppUserModel.fromMap(Map<String, dynamic> map) {
-    final raw = map['photoUrl'];
-    String? photoUrl;
-    if (raw is String) {
-      photoUrl = raw.trim().isEmpty ? null : raw.trim();
-    } else if (raw != null) {
-      final s = raw.toString().trim();
-      photoUrl = s.isEmpty ? null : s;
+  static String? profileImageUrlFromMap(Map<String, dynamic> map) {
+    for (final key in ['profileImage', 'photoUrl']) {
+      final raw = map[key];
+      if (raw is String) {
+        final t = raw.trim();
+        if (t.isNotEmpty) return t;
+      } else if (raw != null) {
+        final s = raw.toString().trim();
+        if (s.isNotEmpty) return s;
+      }
     }
+    return null;
+  }
+
+  factory AppUserModel.fromMap(Map<String, dynamic> map) {
+    final photoUrl = profileImageUrlFromMap(map);
     return AppUserModel(
       uid: map['uid'] as String? ?? '',
       email: map['email'] as String? ?? '',
