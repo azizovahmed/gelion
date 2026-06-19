@@ -9,12 +9,6 @@ import '../../../../core/utils/validators.dart';
 import '../../../auth/domain/entities/app_user.dart';
 import '../../../auth/domain/repositories/auth_repository.dart';
 import '../../../feedback/domain/repositories/feedback_repository.dart';
-import '../../../feedback/presentation/pages/admin_feedbacks_page.dart';
-import '../../../menu/presentation/pages/admin_banners_page.dart';
-import '../../../menu/presentation/pages/admin_categories_page.dart';
-import '../../../menu/presentation/pages/admin_foods_page.dart';
-import '../../../orders/application/order_providers.dart';
-import '../../../orders/presentation/pages/admin_orders_page.dart';
 import '../../../feedback/presentation/pages/submit_feedback_page.dart';
 import 'change_password_page.dart';
 
@@ -116,71 +110,9 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
     );
   }
 
-  void _openAdminCategories() {
-    Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(builder: (_) => const AdminCategoriesPage()),
-    );
-  }
 
-  void _openAdminBanners() {
-    Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(builder: (_) => const AdminBannersPage()),
-    );
-  }
 
-  void _openAdminFoods() {
-    Navigator.of(context).push<void>(
-      PageRouteBuilder<void>(
-        pageBuilder: (context, animation, secondaryAnimation) => const AdminFoodsPage(),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          final curve = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
-          return FadeTransition(
-            opacity: curve,
-            child: SlideTransition(
-              position: Tween<Offset>(begin: const Offset(0.06, 0), end: Offset.zero).animate(curve),
-              child: child,
-            ),
-          );
-        },
-      ),
-    );
-  }
 
-  void _openAdminOrders() {
-    Navigator.of(context).push<void>(
-      PageRouteBuilder<void>(
-        pageBuilder: (context, animation, secondaryAnimation) => const AdminOrdersPage(),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          final curve = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
-          return FadeTransition(
-            opacity: curve,
-            child: SlideTransition(
-              position: Tween<Offset>(begin: const Offset(0.06, 0), end: Offset.zero).animate(curve),
-              child: child,
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  void _openAdminFeedbacks() {
-    Navigator.of(context).push<void>(
-      PageRouteBuilder<void>(
-        pageBuilder: (context, animation, secondaryAnimation) => AdminFeedbacksPage(feedbackRepository: widget.feedbackRepository),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          final curve = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
-          return FadeTransition(
-            opacity: curve,
-            child: SlideTransition(
-              position: Tween<Offset>(begin: const Offset(0.06, 0), end: Offset.zero).animate(curve),
-              child: child,
-            ),
-          );
-        },
-      ),
-    );
-  }
 
   Future<void> _save() async {
     final l10n = context.l10n;
@@ -344,60 +276,7 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
                       card: card,
                       onTap: _openSubmitFeedback,
                     ),
-                    if (_isAdmin) ...[
-                      const SizedBox(height: 10),
-                      _ActionTile(
-                        icon: Icons.category_rounded,
-                        title: l10n.adminCategoriesTitle,
-                        subtitle: l10n.adminCategoriesSubtitle,
-                        isDark: isDark,
-                        card: card,
-                        onTap: _openAdminCategories,
-                      ),
-                      const SizedBox(height: 10),
-                      _ActionTile(
-                        icon: Icons.restaurant_menu_rounded,
-                        title: l10n.adminFoodsTitle,
-                        subtitle: l10n.adminFoodsSubtitle,
-                        isDark: isDark,
-                        card: card,
-                        onTap: _openAdminFoods,
-                      ),
-                      const SizedBox(height: 10),
-                      _ActionTile(
-                        icon: Icons.view_carousel_outlined,
-                        title: l10n.adminBannersTitle,
-                        subtitle: l10n.adminBannersSubtitle,
-                        isDark: isDark,
-                        card: card,
-                        onTap: _openAdminBanners,
-                      ),
-                      const SizedBox(height: 10),
-                      Consumer(
-                        builder: (context, ref, _) {
-                          final pending = ref.watch(adminPendingOrdersCountProvider);
-                          final count = pending.valueOrNull ?? 0;
-                          return _ActionTile(
-                            icon: Icons.receipt_long_rounded,
-                            title: l10n.adminOrdersTitle,
-                            subtitle: l10n.adminOrdersSubtitle,
-                            isDark: isDark,
-                            card: card,
-                            badgeCount: count > 0 ? count : null,
-                            onTap: _openAdminOrders,
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 10),
-                      _ActionTile(
-                        icon: Icons.admin_panel_settings_outlined,
-                        title: l10n.adminFeedbackTitle,
-                        subtitle: l10n.adminFeedbackSubtitle,
-                        isDark: isDark,
-                        card: card,
-                        onTap: _openAdminFeedbacks,
-                      ),
-                    ],
+
                     const SizedBox(height: 22),
                     _SectionTitle(text: l10n.settingsSectionAbout),
                     const SizedBox(height: 8),
