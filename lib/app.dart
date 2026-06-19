@@ -17,7 +17,9 @@ import 'l10n/generated/app_localizations.dart';
 
 class GelionApp extends StatefulWidget {
   const GelionApp({super.key});
-
+  // git add build/web
+  // git commit -m "Add web build"
+  // git push origin main
   @override
   State<GelionApp> createState() => _GelionAppState();
 }
